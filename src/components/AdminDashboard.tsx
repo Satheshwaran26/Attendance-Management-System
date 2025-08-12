@@ -884,7 +884,7 @@ const AdminDashboard: React.FC = () => {
       {showQRGenerator && (
         <QRCodeGenerator
           onClose={() => setShowQRGenerator(false)}
-          onGenerated={(qr: QRCode) => {
+          onGenerated={() => {
             setShowQRGenerator(false);
             loadData();
           }}
@@ -894,7 +894,7 @@ const AdminDashboard: React.FC = () => {
       {showAnnouncementForm && (
         <AnnouncementForm
           onClose={() => setShowAnnouncementForm(false)}
-          onCreate={(announcement: Announcement) => {
+          onCreate={() => {
             setShowAnnouncementForm(false);
             loadData();
           }}
