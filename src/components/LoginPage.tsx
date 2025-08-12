@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { mockAuthService } from '../services/mockData';
 import type { User, UserRegistration } from '../types';
-import { Eye, EyeOff, LogIn, UserPlus, QrCode, ArrowRight, CheckCircle, Shield, Users, Calendar } from 'lucide-react';
+import { Eye, EyeOff, LogIn, UserPlus, QrCode, ArrowRight, CheckCircle, Shield, Users, Calendar, Crown } from 'lucide-react';
 
 const LoginPage: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -93,10 +93,10 @@ const LoginPage: React.FC = () => {
   // If user is in scanner step, show the scanner interface
   if (userStep === 'scanner' && currentUser) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 via-blue-50 to-purple-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="max-w-2xl w-full">
           <div className="text-center mb-8">
-            <div className="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-green-100 mb-4">
+            <div className="mx-auto flex items-center justify-center h-20 w-20 bg-green-50 rounded-2xl mb-4 border border-green-100">
               <CheckCircle className="h-10 w-10 text-green-600" />
             </div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
@@ -107,9 +107,9 @@ const LoginPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-2xl p-8 border border-gray-100">
+          <div className="bg-white rounded-2xl shadow-sm p-8 border border-gray-100">
             <div className="text-center space-y-6">
-              <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-blue-100">
+              <div className="mx-auto flex items-center justify-center h-16 w-16 bg-blue-50 rounded-2xl border border-blue-100">
                 <QrCode className="h-8 w-8 text-blue-600" />
               </div>
               
@@ -122,7 +122,7 @@ const LoginPage: React.FC = () => {
                 </p>
               </div>
 
-              <div className="bg-gradient-to-r from-blue-50 to-green-50 rounded-xl p-6 border border-blue-200">
+              <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
                 <h3 className="font-semibold text-blue-900 mb-3">Your Information:</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                   <div className="text-center">
@@ -149,7 +149,7 @@ const LoginPage: React.FC = () => {
                 </button>
                 <button
                   onClick={handleProceedToScanner}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-green-600 text-white rounded-xl font-medium hover:from-blue-700 hover:to-green-700 transition-all transform hover:scale-105 shadow-lg"
+                  className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-all shadow-sm hover:shadow-md"
                 >
                   <ArrowRight className="h-5 w-5 mr-2 inline" />
                   Go to Scanner
@@ -163,17 +163,17 @@ const LoginPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
         {/* Left Side - Hero Section */}
         <div className="text-center lg:text-left space-y-8">
           <div className="space-y-6">
-            <div className="inline-flex items-center space-x-2 bg-white/80 backdrop-blur-sm px-4 py-2 rounded-full border border-white/20 shadow-lg">
-              <Shield className="h-5 w-5 text-blue-600" />
+            <div className="inline-flex items-center space-x-2 bg-white px-4 py-2 rounded-xl border border-gray-200 shadow-sm">
+              <Crown className="h-5 w-5 text-blue-600" />
               <span className="text-sm font-medium text-gray-700">Secure Attendance System</span>
             </div>
             
-            <h1 className="text-5xl lg:text-6xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent leading-tight">
+            <h1 className="text-5xl lg:text-6xl font-bold text-gray-900 leading-tight">
               Smart Attendance
             </h1>
             
@@ -184,16 +184,16 @@ const LoginPage: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-lg mx-auto lg:mx-0">
-            <div className="text-center p-4 bg-white/60 backdrop-blur-sm rounded-xl border border-white/20">
+            <div className="text-center p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
               <Users className="h-8 w-8 text-blue-600 mx-auto mb-2" />
               <p className="text-sm font-medium text-gray-700">User Management</p>
             </div>
-            <div className="text-center p-4 bg-white/60 backdrop-blur-sm rounded-xl border border-white/20">
+            <div className="text-center p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
               <QrCode className="h-8 w-8 text-purple-600 mx-auto mb-2" />
               <p className="text-sm font-medium text-gray-700">QR Scanning</p>
             </div>
-            <div className="text-center p-4 bg-white/60 backdrop-blur-sm rounded-xl border border-white/20">
-              <Calendar className="h-8 w-8 text-pink-600 mx-auto mb-2" />
+            <div className="text-center p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
+              <Calendar className="h-8 w-8 text-green-600 mx-auto mb-2" />
               <p className="text-sm font-medium text-gray-700">Attendance Records</p>
             </div>
           </div>
@@ -201,7 +201,7 @@ const LoginPage: React.FC = () => {
 
         {/* Right Side - Login/Register Forms */}
         <div className="max-w-md w-full mx-auto">
-          <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-2xl p-8 border border-white/20">
+          <div className="bg-white rounded-2xl shadow-sm p-8 border border-gray-100">
             <div className="text-center mb-8">
               <h2 className="text-3xl font-bold text-gray-900 mb-2">
                 {isLogin ? 'Welcome Back' : 'Join Us'}
@@ -273,7 +273,7 @@ const LoginPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105 shadow-lg"
+                  className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md"
                 >
                   {isLoading ? (
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mx-auto"></div>
@@ -338,7 +338,7 @@ const LoginPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full py-3 px-4 bg-gradient-to-r from-green-600 to-blue-600 text-white rounded-xl font-semibold hover:from-green-700 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105 shadow-lg"
+                  className="w-full py-3 px-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md"
                 >
                   {isLoading ? (
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mx-auto"></div>
@@ -369,7 +369,7 @@ const LoginPage: React.FC = () => {
               </button>
             </div>
 
-            <div className="mt-6 p-4 bg-gray-50/80 rounded-xl border border-gray-200/50">
+            <div className="mt-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
               <h3 className="text-sm font-semibold text-gray-700 mb-3">Demo Accounts:</h3>
               <div className="text-xs text-gray-600 space-y-2">
                 <div className="flex justify-between items-center">
