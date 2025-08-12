@@ -78,7 +78,6 @@ const UserDashboard: React.FC = () => {
   const getAttendanceStreak = () => {
     if (recentAttendance.length === 0) return 0;
     
-    let streak = 0;
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);

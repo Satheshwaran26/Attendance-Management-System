@@ -8,7 +8,6 @@ const QRScanner: React.FC = () => {
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [isError, setIsError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
@@ -43,7 +42,7 @@ const QRScanner: React.FC = () => {
       (decodedText) => {
         handleScanSuccess(decodedText);
       },
-      (error) => {
+      () => {
         // Ignore scanning errors
       }
     );
@@ -54,7 +53,6 @@ const QRScanner: React.FC = () => {
 
     setIsLoading(true);
     setScanResult(decodedText);
-    setIsError(false);
     setErrorMessage('');
 
     try {
@@ -104,7 +102,6 @@ const QRScanner: React.FC = () => {
       }, 3000);
 
     } catch (error) {
-      setIsError(true);
       setErrorMessage(error instanceof Error ? error.message : 'An error occurred');
     } finally {
       setIsLoading(false);
@@ -114,9 +111,8 @@ const QRScanner: React.FC = () => {
   const startScanning = () => {
     setIsScanning(true);
     setIsSuccess(false);
-    setIsError(false);
-    setScanResult(null);
     setErrorMessage('');
+    setScanResult(null);
   };
 
   const stopScanning = () => {
