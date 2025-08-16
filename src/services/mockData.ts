@@ -1,48 +1,40 @@
-import type { User, AttendanceRecord, QRCode, Announcement } from '../types';
-
-// Mock users data
-export const mockUsers: User[] = [
-  {
-    id: '1',
-    name: 'Admin User',
-    email: 'admin@example.com',
-    phone: '+1234567890',
-    isAdmin: true,
-    createdAt: new Date('2024-01-01'),
-  },
-  {
-    id: '2',
-    name: 'John Doe',
-    email: 'john@example.com',
-    phone: '+1234567891',
-    isAdmin: false,
-    createdAt: new Date('2024-01-02'),
-  },
-  {
-    id: '3',
-    name: 'Jane Smith',
-    email: 'jane@example.com',
-    phone: '+1234567892',
-    isAdmin: false,
-    createdAt: new Date('2024-01-03'),
-  },
-];
+import type { AttendanceRecord, QRCode, Announcement } from '../types';
 
 // Mock attendance records
 export const mockAttendanceRecords: AttendanceRecord[] = [
   {
     id: '1',
-    userId: '2',
+    userId: 'user1',
     userName: 'John Doe',
     timestamp: new Date('2024-01-15T09:00:00'),
     qrCodeId: 'qr1',
+    checkedOut: false,
   },
   {
     id: '2',
-    userId: '3',
+    userId: 'user2',
     userName: 'Jane Smith',
     timestamp: new Date('2024-01-15T09:15:00'),
     qrCodeId: 'qr1',
+    checkedOut: true,
+    checkoutTime: new Date('2024-01-15T17:00:00'),
+  },
+  {
+    id: '3',
+    userId: 'user3',
+    userName: 'Mike Johnson',
+    timestamp: new Date('2024-01-15T09:30:00'),
+    qrCodeId: 'qr1',
+    checkedOut: false,
+  },
+  {
+    id: '4',
+    userId: 'user4',
+    userName: 'Sarah Wilson',
+    timestamp: new Date('2024-01-15T09:45:00'),
+    qrCodeId: 'qr1',
+    checkedOut: true,
+    checkoutTime: new Date('2024-01-15T16:30:00'),
   },
 ];
 
@@ -54,7 +46,7 @@ export const mockQRCodes: QRCode[] = [
     isActive: true,
     createdAt: new Date('2024-01-15T08:00:00'),
     expiresAt: new Date('2024-01-15T17:00:00'),
-    scannedBy: ['2', '3'],
+    scannedBy: ['user1', 'user2', 'user3', 'user4'],
   },
 ];
 
@@ -69,41 +61,12 @@ export const mockAnnouncements: Announcement[] = [
   },
   {
     id: '2',
-    title: 'Important Update for John Doe',
+    title: 'Important Update',
     message: 'Please check your email for important course information.',
-    targetUserId: '2',
     createdAt: new Date('2024-01-12'),
     isActive: true,
   },
 ];
-
-// Mock authentication service
-export const mockAuthService = {
-  login: async (email: string, password: string): Promise<User | null> => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const user = mockUsers.find(u => u.email === email);
-    if (user && password === 'password') {
-      return user;
-    }
-    return null;
-  },
-
-  registerUser: async (userData: Omit<User, 'id' | 'isAdmin' | 'createdAt'>): Promise<User> => {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const newUser: User = {
-      ...userData,
-      id: Date.now().toString(),
-      isAdmin: false,
-      createdAt: new Date(),
-    };
-    
-    mockUsers.push(newUser);
-    return newUser;
-  },
-};
 
 // Mock attendance service
 export const mockAttendanceService = {
@@ -115,26 +78,44 @@ export const mockAttendanceService = {
   markAttendance: async (userId: string, qrCodeId: string): Promise<AttendanceRecord> => {
     await new Promise(resolve => setTimeout(resolve, 500));
     
-    const user = mockUsers.find(u => u.id === userId);
-    if (!user) {
-      throw new Error('User not found');
-    }
-
     const newRecord: AttendanceRecord = {
       id: Date.now().toString(),
       userId,
-      userName: user.name,
+      userName: `User ${userId}`,
       timestamp: new Date(),
       qrCodeId,
+      checkedOut: false,
     };
 
     mockAttendanceRecords.push(newRecord);
     return newRecord;
   },
 
-  getUsers: async (): Promise<User[]> => {
+  checkoutUser: async (recordId: string): Promise<AttendanceRecord> => {
     await new Promise(resolve => setTimeout(resolve, 300));
-    return mockUsers;
+    
+    const record = mockAttendanceRecords.find(r => r.id === recordId);
+    if (!record) {
+      throw new Error('Record not found');
+    }
+
+    record.checkedOut = true;
+    record.checkoutTime = new Date();
+    
+    return record;
+  },
+
+  checkoutAllUsers: async (): Promise<AttendanceRecord[]> => {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    mockAttendanceRecords.forEach(record => {
+      if (!record.checkedOut) {
+        record.checkedOut = true;
+        record.checkoutTime = new Date();
+      }
+    });
+    
+    return mockAttendanceRecords;
   },
 };
 
@@ -169,15 +150,8 @@ export const mockQRService = {
 
 // Mock announcement service
 export const mockAnnouncementService = {
-  getAnnouncements: async (userId?: string): Promise<Announcement[]> => {
+  getAnnouncements: async (): Promise<Announcement[]> => {
     await new Promise(resolve => setTimeout(resolve, 300));
-    
-    if (userId) {
-      return mockAnnouncements.filter(
-        ann => ann.isActive && (!ann.targetUserId || ann.targetUserId === userId)
-      );
-    }
-    
     return mockAnnouncements.filter(ann => ann.isActive);
   },
 

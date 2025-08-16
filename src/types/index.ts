@@ -1,18 +1,36 @@
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  isAdmin: boolean;
-  createdAt: Date;
-}
-
 export interface AttendanceRecord {
   id: string;
   userId: string;
   userName: string;
   timestamp: Date;
   qrCodeId: string;
+  checkedOut?: boolean;
+  checkoutTime?: Date;
+}
+
+export interface Student {
+  id: string;
+  name: string;
+  registerNumber: string;
+  classYear: string;
+  aadharNumber: string;
+  phoneNumber: string;
+  email?: string;
+  department?: string;
+  isActive: boolean;
+  createdAt: Date;
+}
+
+export interface AttendanceMarking {
+  id: string;
+  studentId: string;
+  studentName: string;
+  registerNumber: string;
+  date: Date;
+  status: 'present' | 'absent' | 'late';
+  checkInTime?: Date;
+  checkOutTime?: Date;
+  notes?: string;
 }
 
 export interface QRCode {
@@ -32,15 +50,4 @@ export interface Announcement {
   targetUserIds?: string[];
   createdAt: Date;
   isActive: boolean;
-}
-
-export interface LoginCredentials {
-  email: string;
-  password: string;
-}
-
-export interface UserRegistration {
-  name: string;
-  email: string;
-  phone: string;
 }
