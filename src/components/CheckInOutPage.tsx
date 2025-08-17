@@ -30,7 +30,9 @@ const CheckInOutPage: React.FC = () => {
   const [showIndividualCheckoutModal, setShowIndividualCheckoutModal] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
 
-  const API_BASE = 'http://localhost:5000/api';
+  const API_BASE = process.env.NODE_ENV === 'production' 
+    ? 'https://attendance-management-system-z2cc.onrender.com/api' 
+    : 'http://localhost:5000/api';
 
   const checkDatabaseStatus = async () => {
     try {
