@@ -304,8 +304,6 @@ const AttendanceMarkingPage: React.FC = () => {
     }
   };
 
-
-
   const handleReRegistrationDirect = async (student: Student) => {
     setErrorMessage('');
     setSuccessMessage('');
