@@ -26,8 +26,46 @@ const CheckInOutPage: React.FC = () => {
   const [dbStatus, setDbStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
   const [successMessage, setSuccessMessage] = useState('');
   const [selectedSession, setSelectedSession] = useState<'session1' | 'session2'>('session1');
+  const [showIndividualCheckoutModal, setShowIndividualCheckoutModal] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<AttendanceRecord | null>(null);
+  const [individualSession, setIndividualSession] = useState<'session1' | 'session2'>('session1');
+  const [checkoutNotes, setCheckoutNotes] = useState('');
+  const [isIndividualCheckoutProcessing, setIsIndividualCheckoutProcessing] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [password, setPassword] = useState('');
+  const [isPasswordVerifying, setIsPasswordVerifying] = useState(false);
 
   const API_BASE = 'http://localhost:5000/api';
+
+  // Password verification function
+  const verifyPassword = async () => {
+    if (!password.trim()) {
+      setPasswordError('Password is required');
+      return false;
+    }
+
+    setIsPasswordVerifying(true);
+    setPasswordError('');
+
+    try {
+      // Simple password check - you can modify this to use a more secure method
+      if (password === 'admin123') { // Change this to your desired password
+        setShowPasswordModal(false);
+        setPassword('');
+        setPasswordError('');
+        handlePasswordVerified(); // Call this function when password is verified
+        return true;
+      } else {
+        setPasswordError('Incorrect password');
+        return false;
+      }
+    } catch (error) {
+      setPasswordError('Password verification failed');
+      return false;
+    } finally {
+      setIsPasswordVerifying(false);
+    }
+  };
 
   const checkDatabaseStatus = async () => {
     try {
@@ -55,6 +93,37 @@ const CheckInOutPage: React.FC = () => {
       loadData();
     };
     
+    // Listen for new students being marked present
+    const handleStudentCheckedIn = (event: any) => {
+      console.log('New student checked in:', event.detail);
+      // Immediately add the new student to the list
+      const newStudent = {
+        id: event.detail.studentId,
+        userId: event.detail.registerNumber,
+        userName: event.detail.studentName,
+        timestamp: new Date(event.detail.checkInTime),
+        checkoutTime: undefined,
+        checkedOut: false,
+        qrCodeId: event.detail.studentId
+      };
+      
+      setAttendanceRecords(prev => {
+        // Check if student already exists
+        const exists = prev.some(s => s.id === newStudent.id);
+        if (!exists) {
+          return [...prev, newStudent];
+        }
+        return prev;
+      });
+    };
+    
+    // Listen for students who are already present (re-registration attempt)
+    const handleStudentAlreadyPresent = (event: any) => {
+      console.log('Student already present (re-registration attempt):', event.detail);
+      // Don't add to list since they're already there
+      // Just ensure they remain visible on the CheckIn/Out page
+    };
+    
     // Listen for page visibility changes to refresh data when tab becomes active
     const handleVisibilityChange = () => {
       if (!document.hidden) {
@@ -64,6 +133,8 @@ const CheckInOutPage: React.FC = () => {
     };
     
     window.addEventListener('attendanceUpdated', handleAttendanceUpdate);
+    window.addEventListener('studentCheckedIn', handleStudentCheckedIn);
+    window.addEventListener('studentAlreadyPresent', handleStudentAlreadyPresent);
     document.addEventListener('visibilitychange', handleVisibilityChange);
     
     // Set up periodic refresh every 30 seconds to keep data current
@@ -74,6 +145,8 @@ const CheckInOutPage: React.FC = () => {
     
     return () => {
       window.removeEventListener('attendanceUpdated', handleAttendanceUpdate);
+      window.removeEventListener('studentCheckedIn', handleStudentCheckedIn);
+      window.removeEventListener('studentAlreadyPresent', handleStudentAlreadyPresent);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       clearInterval(intervalId);
     };
@@ -203,6 +276,16 @@ const CheckInOutPage: React.FC = () => {
       // Show success message
       setSuccessMessage(`Successfully checked out ${record.userName}!`);
       
+      // Dispatch event to notify other components (like SessionDataPage)
+      window.dispatchEvent(new CustomEvent('attendanceUpdated', { 
+        detail: { 
+          action: 'checkout', 
+          studentId: record.id, 
+          studentName: record.userName,
+          timestamp: new Date().toISOString()
+        } 
+      }));
+      
       // Clear success message after 3 seconds
       setTimeout(() => {
         setSuccessMessage('');
@@ -217,9 +300,28 @@ const CheckInOutPage: React.FC = () => {
     }
   };
 
+  const handleIndividualCheckout = (recordId: string) => {
+    const student = attendanceRecords.find(record => record.id === recordId);
+    if (student) {
+      setSelectedStudent(student);
+      setIndividualSession('session1');
+      setCheckoutNotes('');
+      setShowPasswordModal(true); // Show password modal first
+    }
+  };
+
+  const handlePasswordVerified = () => {
+    setShowIndividualCheckoutModal(true); // Show individual checkout modal after password verification
+  };
+
   const handleCheckoutAll = async () => {
-    if (adminPassword !== 'admin123') { // In real app, this should be secure
+    if (adminPassword !== 'admin123') {
       setPasswordError('Invalid password');
+      return;
+    }
+
+    if (!selectedSession) {
+      setPasswordError('Please select a session (Session 1 or Session 2)');
       return;
     }
 
@@ -232,84 +334,176 @@ const CheckInOutPage: React.FC = () => {
       // Get all records that are currently checked in (not checked out)
       const recordsToCheckout = attendanceRecords.filter(record => !record.checkedOut);
       
-      console.log('Records to checkout:', recordsToCheckout);
-      console.log('Total attendance records:', attendanceRecords.length);
-      console.log('Records that are checked out:', attendanceRecords.filter(record => record.checkedOut).length);
-      
       if (recordsToCheckout.length === 0) {
-        setPasswordError(`No users to checkout. Total records: ${attendanceRecords.length}, Checked out: ${attendanceRecords.filter(record => record.checkedOut).length}`);
+        setPasswordError('No students to checkout.');
         return;
       }
 
-      // Update all records in the backend
-      const checkoutPromises = recordsToCheckout.map(async (record) => {
-        try {
-          console.log(`Attempting to checkout record ${record.id} for student ${record.userName}`);
+      // First try batch checkout
+      try {
+        const batchResponse = await fetch(`${API_BASE}/attendance/batch-checkout`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            records: recordsToCheckout.map(record => ({
+              id: record.id,
+              student_id: record.userId,
+              check_out_time: new Date().toISOString(),
+              session: selectedSession
+            }))
+          }),
+        });
+
+        if (batchResponse.ok) {
+          // All records were checked out successfully
+          const successCount = recordsToCheckout.length;
+          const successfulCheckouts = recordsToCheckout.map(record => ({
+            id: record.id,
+            name: record.userName,
+            registerNumber: record.userId,
+            checkInTime: record.timestamp.toISOString(),
+            checkOutTime: new Date().toISOString(),
+            session: selectedSession
+          }));
+
+          setAttendanceRecords(prev => prev.filter(record => 
+            !recordsToCheckout.some(r => r.id === record.id)
+          ));
           
+          setSuccessMessage(`Successfully checked out ${successCount} students for ${
+            selectedSession === 'session1' ? 'Session 1 (Morning)' : 'Session 2 (Afternoon)'
+          }`);
+
+          // Dispatch event to notify other components (like SessionDataPage)
+          window.dispatchEvent(new CustomEvent('attendanceUpdated', { 
+            detail: { 
+              action: 'checkoutAll', 
+              count: successCount, 
+              session: selectedSession,
+              timestamp: new Date().toISOString(),
+              students: successfulCheckouts,
+              date: new Date().toISOString().split('T')[0]
+            } 
+          }));
+          
+          // Also dispatch a specific event for Session Data page
+          const sessionDataEvent = new CustomEvent('sessionDataUpdated', {
+            detail: {
+              action: 'checkoutAll',
+              session: selectedSession,
+              students: successfulCheckouts.map(sc => ({
+                id: sc.id,
+                studentId: sc.registerNumber,
+                studentName: sc.name,
+                checkInTime: sc.checkInTime,
+                checkOutTime: sc.checkOutTime,
+                session: sc.session,
+                date: new Date().toISOString().split('T')[0]
+              }))
+            }
+          });
+          window.dispatchEvent(sessionDataEvent);
+
+          setShowCheckoutAllModal(false);
+          setAdminPassword('');
+          
+          await loadData();
+          return;
+        }
+      } catch (error) {
+        console.error('Batch checkout failed, falling back to individual checkouts:', error);
+      }
+
+      // If batch checkout fails, fall back to individual checkouts
+      let successCount = 0;
+      const successfulCheckouts: Array<{
+        id: string;
+        name: string;
+        registerNumber: string;
+        checkInTime: string;
+        checkOutTime: string;
+        session: string;
+      }> = [];
+      const failedCheckouts: AttendanceRecord[] = [];
+
+      for (const record of recordsToCheckout) {
+        try {
           const response = await fetch(`${API_BASE}/attendance/${record.id}/checkout`, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
+              student_id: record.userId,
               check_out_time: new Date().toISOString(),
               session: selectedSession
             }),
           });
 
-          if (!response.ok) {
+          if (response.ok) {
+            successCount++;
+            successfulCheckouts.push({
+              id: record.id,
+              name: record.userName,
+              registerNumber: record.userId,
+              checkInTime: record.timestamp.toISOString(),
+              checkOutTime: new Date().toISOString(),
+              session: selectedSession
+            });
+          } else {
+            failedCheckouts.push(record);
             const errorData = await response.json().catch(() => ({}));
-            console.error(`Checkout failed for ${record.userName}:`, errorData);
-            throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+            console.error(`Failed to checkout ${record.userName}:`, errorData);
           }
-
-          const result = await response.json();
-          console.log(`Successfully checked out ${record.userName}:`, result);
-          return record.id;
         } catch (error) {
-          console.error(`Error checking out user ${record.userName}:`, error);
-          return null;
+          failedCheckouts.push(record);
+          console.error(`Error checking out ${record.userName}:`, error);
         }
-      });
+      }
 
-      // Wait for all checkout operations to complete
-      const checkoutResults = await Promise.all(checkoutPromises);
-      console.log('Checkout results:', checkoutResults);
-      
-      const successfulIds = checkoutResults.filter(id => id !== null);
-      const failedCheckouts = checkoutResults.filter(id => id === null);
-
-      if (successfulIds.length > 0) {
+      // Update UI based on results
+      if (successCount > 0) {
         // Remove checked-out students from the list immediately
-        const remainingRecords = attendanceRecords.filter(record => !successfulIds.includes(record.id));
-        setAttendanceRecords(remainingRecords);
-        
-        setShowCheckoutAllModal(false);
-        setAdminPassword('');
-        setPasswordError('');
+        setAttendanceRecords(prev => prev.filter(record => 
+          !successfulCheckouts.some(sc => sc.id === record.id)
+        ));
         
         // Show success message
-        let message = `Successfully checked out ${successfulIds.length} students for ${selectedSession === 'session1' ? 'Session 1 (Morning)' : 'Session 2 (Afternoon)'}!`;
-        if (failedCheckouts.length > 0) {
-          message += ` (${failedCheckouts.length} failed)`;
-        }
-        
+        const message = `Successfully checked out ${successCount} students for ${
+          selectedSession === 'session1' ? 'Session 1 (Morning)' : 'Session 2 (Afternoon)'
+        }${failedCheckouts.length > 0 ? ` (${failedCheckouts.length} failed)` : ''}`;
         setSuccessMessage(message);
-        
+
+        // Notify other components
+        window.dispatchEvent(new CustomEvent('attendanceUpdated', {
+          detail: {
+            action: 'checkoutAll',
+            count: successCount,
+            session: selectedSession,
+            timestamp: new Date().toISOString(),
+            students: successfulCheckouts
+          }
+        }));
+
+        // Close modal and clear form
+        setShowCheckoutAllModal(false);
+        setAdminPassword('');
+
         // Clear success message after 5 seconds
         setTimeout(() => {
           setSuccessMessage('');
         }, 5000);
         
-        // Reload data to ensure consistency
+        // Refresh data to ensure consistency
         await loadData();
       } else {
-        setPasswordError(`Failed to checkout any users. ${failedCheckouts.length} attempts failed. Check console for details.`);
+        setPasswordError(`Failed to checkout any students. ${failedCheckouts.length} attempts failed. Please try again.`);
       }
-    } catch (error) {
-      console.error('Error checking out all users:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      setPasswordError(`An error occurred while checking out users: ${errorMessage}`);
+    } catch (error: any) {
+      console.error('Error during checkout:', error);
+      setPasswordError('Failed to checkout students. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -549,7 +743,7 @@ const CheckInOutPage: React.FC = () => {
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                               {!record.checkedOut && (
                                 <button
-                                  onClick={() => handleCheckout(record.id)}
+                                  onClick={() => handleIndividualCheckout(record.id)}
                                   className="text-red-600 hover:text-red-800 hover:bg-red-50 px-3 py-1 rounded-lg transition-all flex items-center space-x-1"
                                 >
                                   <LogOut className="h-4 w-4" />
@@ -593,7 +787,7 @@ const CheckInOutPage: React.FC = () => {
                 </p>
               </div>
 
-              <div className="space-y-4">
+                             <div className="space-y-4">
                 {/* Session Selection */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -671,6 +865,7 @@ const CheckInOutPage: React.FC = () => {
 
               <div className="flex justify-end space-x-3 pt-6">
                 <button
+                  type="button"
                   onClick={() => {
                     setShowCheckoutAllModal(false);
                     setAdminPassword('');
@@ -681,8 +876,9 @@ const CheckInOutPage: React.FC = () => {
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={handleCheckoutAll}
-                  disabled={!adminPassword.trim() || isProcessing}
+                  disabled={!adminPassword.trim() || !selectedSession || isProcessing}
                   className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white rounded-xl font-medium transition-all disabled:cursor-not-allowed flex items-center space-x-2"
                 >
                   {isProcessing ? (
@@ -694,6 +890,305 @@ const CheckInOutPage: React.FC = () => {
                     <>
                       <LogOut className="h-4 w-4" />
                       <span>Checkout All</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Password Verification Modal */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <div className="text-center mb-6">
+                <div className="mx-auto flex items-center justify-center h-16 w-16 bg-blue-50 rounded-2xl mb-4 border border-blue-100">
+                  <Lock className="h-8 w-8 text-blue-600" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-900 mb-2">
+                  Password Verification
+                </h2>
+                <p className="text-gray-600">
+                  Please enter the admin password to confirm this action.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {/* Password Input */}
+                <div>
+                  <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                    Admin Password *
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all pr-12"
+                      placeholder="Enter admin password"
+                    />
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-0 pr-4 flex items-center"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                      ) : (
+                        <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                      )}
+                    </button>
+                  </div>
+                  {passwordError && (
+                    <p className="mt-1 text-sm text-red-600">{passwordError}</p>
+                  )}
+                  <p className="mt-1 text-xs text-gray-500">
+                    Demo password: admin123
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPasswordModal(false);
+                    setPassword('');
+                    setPasswordError('');
+                  }}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={verifyPassword}
+                  disabled={isPasswordVerifying}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-xl font-medium transition-all disabled:cursor-not-allowed flex items-center space-x-2"
+                >
+                  {isPasswordVerifying ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>Verifying...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="h-4 w-4" />
+                      <span>Verify Password</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Individual Checkout Modal */}
+      {showIndividualCheckoutModal && selectedStudent && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <div className="text-center mb-6">
+                <div className="mx-auto flex items-center justify-center h-16 w-16 bg-red-50 rounded-2xl mb-4 border border-red-100">
+                  <Lock className="h-8 w-8 text-red-600" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-900 mb-2">
+                  Individual Checkout for {selectedStudent.userName}
+                </h2>
+                <p className="text-gray-600">
+                  Please enter the admin password to confirm this individual checkout.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {/* Session Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select Session *
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setIndividualSession('session1')}
+                      className={`p-3 rounded-xl border-2 transition-all ${
+                        individualSession === 'session1'
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="text-center">
+                        <div className="text-lg font-semibold">Session 1</div>
+                        <div className="text-sm opacity-75">Morning</div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIndividualSession('session2')}
+                      className={`p-3 rounded-xl border-2 transition-all ${
+                        individualSession === 'session2'
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="text-center">
+                        <div className="text-lg font-semibold">Session 2</div>
+                        <div className="text-sm opacity-75">Afternoon</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Checkout Notes */}
+                <div>
+                  <label htmlFor="checkoutNotes" className="block text-sm font-medium text-gray-700 mb-2">
+                    Checkout Notes (Optional)
+                  </label>
+                  <textarea
+                    id="checkoutNotes"
+                    value={checkoutNotes}
+                    onChange={(e) => setCheckoutNotes(e.target.value)}
+                    rows={3}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    placeholder="Add any notes for the checkout..."
+                  />
+                </div>
+
+                {/* Password Input */}
+                <div>
+                  <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                    Admin Password *
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all pr-12"
+                      placeholder="Enter admin password"
+                    />
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-0 pr-4 flex items-center"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                      ) : (
+                        <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                      )}
+                    </button>
+                  </div>
+                  {passwordError && (
+                    <p className="mt-1 text-sm text-red-600">{passwordError}</p>
+                  )}
+                  <p className="mt-1 text-xs text-gray-500">
+                    Demo password: admin123
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowIndividualCheckoutModal(false);
+                    setSelectedStudent(null);
+                    setPassword('');
+                    setPasswordError('');
+                  }}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (await verifyPassword()) {
+                      setIsIndividualCheckoutProcessing(true);
+                      try {
+                        const response = await fetch(`${API_BASE}/attendance/${selectedStudent.id}/checkout`, {
+                          method: 'PUT',
+                          headers: {
+                            'Content-Type': 'application/json',
+                          },
+                          body: JSON.stringify({
+                            check_out_time: new Date().toISOString(),
+                            session: individualSession,
+                            notes: checkoutNotes
+                          }),
+                        });
+
+                        if (response.ok) {
+                          const updatedRecord = {
+                            ...selectedStudent,
+                            checkedOut: true,
+                            checkoutTime: new Date(),
+                            notes: checkoutNotes
+                          };
+                          setAttendanceRecords(prev => prev.map(r => r.id === updatedRecord.id ? updatedRecord : r));
+                          setSuccessMessage(`Successfully checked out ${updatedRecord.userName}!`);
+                          
+                          // Dispatch event to add student to session data
+                          window.dispatchEvent(new CustomEvent('studentAddedToSession', { 
+                            detail: { 
+                              action: 'individualCheckout', 
+                              studentId: updatedRecord.id, 
+                              studentName: updatedRecord.userName,
+                              registerNumber: updatedRecord.userId,
+                              session: individualSession,
+                              checkInTime: updatedRecord.timestamp.toISOString(),
+                              checkOutTime: new Date().toISOString(),
+                              notes: checkoutNotes,
+                              timestamp: new Date().toISOString()
+                            } 
+                          }));
+                          
+                          // Also dispatch the regular attendance update event
+                          window.dispatchEvent(new CustomEvent('attendanceUpdated', { 
+                            detail: { 
+                              action: 'checkout', 
+                              studentId: updatedRecord.id, 
+                              studentName: updatedRecord.userName,
+                              timestamp: new Date().toISOString()
+                            } 
+                          }));
+                          
+                          setShowIndividualCheckoutModal(false);
+                          setSelectedStudent(null);
+                          setPassword('');
+                          setPasswordError('');
+                          setCheckoutNotes('');
+                        } else {
+                          const errorData = await response.json().catch(() => ({}));
+                          console.error('Individual checkout error response:', errorData);
+                          throw new Error(errorData.error || 'Failed to checkout user');
+                        }
+                      } catch (error) {
+                        console.error('Error during individual checkout:', error);
+                        setPasswordError(`Failed to checkout: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                      } finally {
+                        setIsIndividualCheckoutProcessing(false);
+                      }
+                    }
+                  }}
+                  disabled={!password.trim() || isIndividualCheckoutProcessing}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white rounded-xl font-medium transition-all disabled:cursor-not-allowed flex items-center space-x-2"
+                >
+                  {isIndividualCheckoutProcessing ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>Processing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <LogOut className="h-4 w-4" />
+                      <span>Checkout</span>
                     </>
                   )}
                 </button>

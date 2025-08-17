@@ -8,6 +8,14 @@ export interface AttendanceRecord {
   checkoutTime?: Date;
 }
 
+export interface Admin {
+  id: string;
+  username: string;
+  email: string;
+  isActive: boolean;
+  createdAt: Date;
+}
+
 export interface Student {
   id: string;
   name: string;

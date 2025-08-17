@@ -1,19 +1,43 @@
 import type { AttendanceRecord, QRCode, Announcement } from '../types';
 
-// Mock attendance records
+// Real student names from BOOTCAMP-data.csv
+const realStudentNames = [
+  'ARUNKUMAR A',
+  'GOWTHAM C M',
+  'HARI PRASATH S',
+  'MEETH R',
+  'NAVEEN PANDI C',
+  'SUJEL RAM S',
+  'VIJAYAMURUGAN S',
+  'MATTHEWLYNN M',
+  'BHARATH KUMAR B',
+  'CHENDUR M',
+  'DIVYA PRABHA M N',
+  'HARINI N',
+  'VIGNESH M',
+  'V. AJITHKUMAR',
+  'ARISURYA VJ',
+  'DAKSHA G',
+  'R.DARIO FERNANDO',
+  'DEEPIKA TAMIL ARASI NV',
+  'DHARSHNA SRI.L',
+  'EDWIN KOSHY'
+];
+
+// Mock attendance records using real student names
 export const mockAttendanceRecords: AttendanceRecord[] = [
   {
     id: '1',
-    userId: 'user1',
-    userName: 'John Doe',
+    userId: '23105071',
+    userName: 'ARUNKUMAR A',
     timestamp: new Date('2024-01-15T09:00:00'),
     qrCodeId: 'qr1',
     checkedOut: false,
   },
   {
     id: '2',
-    userId: 'user2',
-    userName: 'Jane Smith',
+    userId: '23105083',
+    userName: 'GOWTHAM C M',
     timestamp: new Date('2024-01-15T09:15:00'),
     qrCodeId: 'qr1',
     checkedOut: true,
@@ -21,21 +45,54 @@ export const mockAttendanceRecords: AttendanceRecord[] = [
   },
   {
     id: '3',
-    userId: 'user3',
-    userName: 'Mike Johnson',
+    userId: '23105084',
+    userName: 'HARI PRASATH S',
     timestamp: new Date('2024-01-15T09:30:00'),
     qrCodeId: 'qr1',
     checkedOut: false,
   },
   {
     id: '4',
-    userId: 'user4',
-    userName: 'Sarah Wilson',
+    userId: '23105097',
+    userName: 'MEETH R',
     timestamp: new Date('2024-01-15T09:45:00'),
     qrCodeId: 'qr1',
     checkedOut: true,
     checkoutTime: new Date('2024-01-15T16:30:00'),
   },
+  {
+    id: '5',
+    userId: '23105105',
+    userName: 'NAVEEN PANDI C',
+    timestamp: new Date('2024-01-15T10:00:00'),
+    qrCodeId: 'qr1',
+    checkedOut: false,
+  },
+  {
+    id: '6',
+    userId: '23105128',
+    userName: 'SUJEL RAM S',
+    timestamp: new Date('2024-01-15T10:15:00'),
+    qrCodeId: 'qr1',
+    checkedOut: false,
+  },
+  {
+    id: '7',
+    userId: '23105130',
+    userName: 'VIJAYAMURUGAN S',
+    timestamp: new Date('2024-01-15T10:30:00'),
+    qrCodeId: 'qr1',
+    checkedOut: true,
+    checkoutTime: new Date('2024-01-15T17:15:00'),
+  },
+  {
+    id: '8',
+    userId: '23105132',
+    userName: 'MATTHEWLYNN M',
+    timestamp: new Date('2024-01-15T10:45:00'),
+    qrCodeId: 'qr1',
+    checkedOut: false,
+  }
 ];
 
 // Mock QR codes
@@ -46,7 +103,7 @@ export const mockQRCodes: QRCode[] = [
     isActive: true,
     createdAt: new Date('2024-01-15T08:00:00'),
     expiresAt: new Date('2024-01-15T17:00:00'),
-    scannedBy: ['user1', 'user2', 'user3', 'user4'],
+    scannedBy: ['23105071', '23105083', '23105084', '23105097', '23105105', '23105128', '23105130', '23105132'],
   },
 ];
 
@@ -54,18 +111,25 @@ export const mockQRCodes: QRCode[] = [
 export const mockAnnouncements: Announcement[] = [
   {
     id: '1',
-    title: 'Welcome to the new semester!',
-    message: 'We hope everyone has a great start to the new academic year.',
+    title: 'Welcome to BCA Bootcamp! 🎓',
+    message: 'Welcome all BCA students to the new semester. We have 387 students enrolled across different batches.',
     createdAt: new Date('2024-01-10'),
     isActive: true,
   },
   {
     id: '2',
-    title: 'Important Update',
-    message: 'Please check your email for important course information.',
+    title: 'Attendance System Update 📱',
+    message: 'New QR-based attendance system is now live. Please scan QR codes for attendance.',
     createdAt: new Date('2024-01-12'),
     isActive: true,
   },
+  {
+    id: '3',
+    title: 'BCA Department Notice 📢',
+    message: 'All BCA students please ensure regular attendance. Minimum 75% attendance required.',
+    createdAt: new Date('2024-01-14'),
+    isActive: true,
+  }
 ];
 
 // Mock attendance service
@@ -78,10 +142,14 @@ export const mockAttendanceService = {
   markAttendance: async (userId: string, qrCodeId: string): Promise<AttendanceRecord> => {
     await new Promise(resolve => setTimeout(resolve, 500));
     
+    // Find a real student name for the new user
+    const studentIndex = parseInt(userId) % realStudentNames.length;
+    const studentName = realStudentNames[studentIndex];
+    
     const newRecord: AttendanceRecord = {
       id: Date.now().toString(),
       userId,
-      userName: `User ${userId}`,
+      userName: studentName,
       timestamp: new Date(),
       qrCodeId,
       checkedOut: false,
@@ -101,22 +169,18 @@ export const mockAttendanceService = {
 
     record.checkedOut = true;
     record.checkoutTime = new Date();
-    
     return record;
   },
 
-  checkoutAllUsers: async (): Promise<AttendanceRecord[]> => {
-    await new Promise(resolve => setTimeout(resolve, 1000));
+  getAttendanceStats: async () => {
+    await new Promise(resolve => setTimeout(resolve, 300));
     
-    mockAttendanceRecords.forEach(record => {
-      if (!record.checkedOut) {
-        record.checkedOut = true;
-        record.checkoutTime = new Date();
-      }
-    });
+    const total = mockAttendanceRecords.length;
+    const present = mockAttendanceRecords.filter(r => !r.checkedOut).length;
+    const checkedOut = mockAttendanceRecords.filter(r => r.checkedOut).length;
     
-    return mockAttendanceRecords;
-  },
+    return { total, present, checkedOut };
+  }
 };
 
 // Mock QR code service

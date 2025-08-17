@@ -1,382 +1,310 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { 
+  Plus, 
+  Crown, 
+  LayoutDashboard,
   Users,
+  GraduationCap,
+  Building,
+  RefreshCw,
+  TrendingUp,
   Clock,
-  LayoutDashboard, 
-  Plus,
-  BarChart3,
-  Settings
+  CheckCircle
 } from 'lucide-react';
-import CheckInOutPage from './CheckInOutPage';
-import UserManagementPage from './UserManagementPage';
-import AttendanceMarkingPage from './AttendanceMarkingPage';
-import CheckoutDataPage from './CheckoutDataPage';
+import { useNavigate } from 'react-router-dom';
+
+interface Stats {
+  total: number;
+  byDepartment: { [key: string]: number };
+  byYear: { [key: number]: number };
+}
+
+const API_BASE = process.env.NODE_ENV === 'production' 
+  ? 'https://attendance-management-system-z2cc.onrender.com/api'
+  : 'http://localhost:5000/api';
 
 const AdminDashboard: React.FC = () => {
-  const [searchParams] = useSearchParams();
-  const [activeSection, setActiveSection] = useState<string>('dashboard');
+  const navigate = useNavigate();
+  const [stats, setStats] = useState<Stats>({ total: 0, byDepartment: {}, byYear: {} });
+  const [loading, setLoading] = useState(true);
+  const [recentActivity, setRecentActivity] = useState<Array<{type: string, message: string, time: string}>>([]);
 
   useEffect(() => {
-    const section = searchParams.get('section');
-    if (section) {
-      setActiveSection(section);
-    }
-  }, [searchParams]);
+    fetchStats();
+    generateRecentActivity();
+  }, []);
 
-  const renderSection = () => {
-    switch (activeSection) {
-      case 'checkinout':
-        return <CheckInOutPage />;
-      case 'users':
-        return <UserManagementPage />;
-      case 'attendance':
-        return <AttendanceMarkingPage />;
-      case 'checkoutdata':
-        return <CheckoutDataPage />;
-      default:
-        return <DashboardOverview />;
+  const fetchStats = async () => {
+    try {
+      setLoading(true);
+      console.log('Fetching stats from:', `${API_BASE}/students/stats`);
+      
+      const response = await fetch(`${API_BASE}/students/stats`);
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Stats data received:', data);
+        setStats(data);
+      } else {
+        const errorText = await response.text();
+        console.error('Response not ok. Status:', response.status, 'Error:', errorText);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+      // Set some default stats to prevent 0 values
+      setStats({
+        total: 0,
+        byDepartment: {},
+        byYear: {}
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const DashboardOverview: React.FC = () => (
-    <div className="p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Welcome Header */}
+  const generateRecentActivity = () => {
+    const activities = [
+      { type: 'success', message: 'Database connection established', time: 'Just now' },
+      { type: 'info', message: 'Student statistics loaded', time: '2 min ago' },
+      { type: 'success', message: 'All departments configured', time: '5 min ago' }
+    ];
+    setRecentActivity(activities);
+  };
+
+  const navigateToSection = (section: string) => {
+    navigate(`/${section}`);
+  };
+
+  const getTopDepartments = () => {
+    return Object.entries(stats.byDepartment)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 6)
+      .map(([dept, count]) => ({ name: dept, count }));
+  };
+
+  const getActivityIcon = (type: string) => {
+    switch (type) {
+      case 'success':
+        return <CheckCircle className="w-4 h-4 text-green-500" />;
+      case 'info':
+        return <Clock className="w-4 h-4 text-blue-500" />;
+      case 'warning':
+        return <TrendingUp className="w-4 h-4 text-yellow-500" />;
+      default:
+        return <Clock className="w-4 h-4 text-gray-500" />;
+    }
+  };
+
+  const getActivityColor = (type: string) => {
+    switch (type) {
+      case 'success':
+        return 'bg-green-50 border-green-200';
+      case 'info':
+        return 'bg-blue-50 border-blue-200';
+      case 'warning':
+        return 'bg-yellow-50 border-yellow-200';
+      default:
+        return 'bg-gray-50 border-gray-200';
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-gray-600" />
+          <p className="text-gray-600">Loading dashboard data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+    
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Welcome Section */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome to Bootcamp Portal</h1>
-          <p className="text-gray-600">Manage your bootcamp attendance system efficiently</p>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <div className="h-16 w-16 bg-blue-50 rounded-2xl flex items-center justify-center border border-blue-100">
+                <img 
+                  src="/src/assets/generated-image (1).png" 
+                  alt="Logo" 
+                  className="h-10 w-10"
+                />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">Welcome to Admin Dashboard</h1>
+                <p className="text-gray-600 text-lg">Manage your multi-department student attendance system</p>
+              </div>
+            </div>
+            
+            {/* Manual Refresh Button */}
+            <button
+              onClick={fetchStats}
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-all flex items-center space-x-2"
+            >
+              <RefreshCw className="h-5 w-5" />
+              <span>Refresh Stats</span>
+            </button>
+          </div>
         </div>
 
         {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-            <div className="flex items-center justify-between mb-4">
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <div className="flex items-center gap-4">
               <div className="h-12 w-12 bg-blue-50 rounded-xl flex items-center justify-center border border-blue-100">
-                <Users className="h-6 w-6 text-blue-600" />
+                <Users className="w-6 h-6 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm text-blue-600 font-medium">Total Students</p>
+                <p className="text-2xl font-bold text-blue-900">{stats.total}</p>
+                <p className="text-xs text-gray-500">Across all departments</p>
               </div>
             </div>
-            <p className="text-gray-500 text-sm font-medium">Total Students</p>
-            <p className="text-3xl font-bold text-gray-900">1,247</p>
-            <p className="text-green-600 text-sm">+12% from last month</p>
           </div>
-          
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-            <div className="flex items-center justify-between mb-4">
+
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <div className="flex items-center gap-4">
               <div className="h-12 w-12 bg-green-50 rounded-xl flex items-center justify-center border border-green-100">
-                <Clock className="h-6 w-6 text-green-600" />
+                <Building className="w-6 h-6 text-green-600" />
+              </div>
+              <div>
+                <p className="text-sm text-green-600 font-medium">Departments</p>
+                <p className="text-2xl font-bold text-green-900">{Object.keys(stats.byDepartment).length}</p>
+                <p className="text-xs text-gray-500">Active departments</p>
               </div>
             </div>
-            <p className="text-gray-500 text-sm font-medium">Present Today</p>
-            <p className="text-3xl font-bold text-gray-900">1,189</p>
-            <p className="text-green-600 text-sm">95.3% attendance</p>
           </div>
           
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-            <div className="flex items-center justify-between mb-4">
-              <div className="h-12 w-12 bg-yellow-50 rounded-xl flex items-center justify-center border border-yellow-100">
-                <BarChart3 className="h-6 w-6 text-yellow-600" />
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 bg-purple-50 rounded-xl flex items-center justify-center border border-purple-100">
+                <GraduationCap className="w-6 h-6 text-purple-600" />
+              </div>
+              <div>
+                <p className="text-sm text-purple-600 font-medium">Class Years</p>
+                <p className="text-2xl font-bold text-purple-900">{Object.keys(stats.byYear).length}</p>
+                <p className="text-xs text-gray-500">Academic levels</p>
               </div>
             </div>
-            <p className="text-gray-500 text-sm font-medium">Reports Generated</p>
-            <p className="text-3xl font-bold text-gray-900">156</p>
-            <p className="text-purple-600 text-sm">This month</p>
+          </div>
+          
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 bg-orange-50 rounded-xl flex items-center justify-center border border-orange-100">
+                <TrendingUp className="w-6 h-6 text-orange-600" />
+              </div>
+              <div>
+                <p className="text-sm text-orange-600 font-medium">Largest Dept</p>
+                <p className="text-lg font-bold text-orange-900">
+                  {Object.entries(stats.byDepartment).sort(([,a], [,b]) => b - a)[0]?.[0] || 'N/A'}
+                </p>
+                <p className="text-xs text-gray-500">Most students</p>
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Access</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                onClick={() => setActiveSection('checkinout')}
-                className="p-4 bg-blue-50 rounded-xl border border-blue-200 hover:bg-blue-100 transition-all text-left"
-              >
-                <div className="h-8 w-8 bg-blue-100 rounded-lg flex items-center justify-center mb-2">
-                  <Users className="h-5 w-5 text-blue-600" />
-                </div>
-                <p className="font-semibold text-blue-900">Attendance Status</p>
-                <p className="text-sm text-blue-700">Check-in/out students</p>
-              </button>
-              
-              <button
-                onClick={() => setActiveSection('users')}
-                className="p-4 bg-green-50 rounded-xl border border-green-200 hover:bg-green-100 transition-all text-left"
-              >
-                <div className="h-8 w-8 bg-green-100 rounded-lg flex items-center justify-center mb-2">
-                  <Plus className="h-5 w-5 text-green-600" />
-                </div>
-                <p className="font-semibold text-green-900">Student Directory</p>
-                <p className="text-sm text-green-700">Manage student records</p>
-              </button>
-              
-              <button
-                onClick={() => setActiveSection('attendance')}
-                className="p-4 bg-yellow-50 rounded-xl border border-yellow-200 hover:bg-yellow-100 transition-all text-left"
-              >
-                <div className="h-8 w-8 bg-yellow-100 rounded-lg flex items-center justify-center mb-2">
-                  <BarChart3 className="h-5 w-5 text-yellow-600" />
-                </div>
-                <p className="font-semibold text-yellow-900">Mark Present</p>
-                <p className="text-sm text-yellow-700">Record student attendance</p>
-              </button>
-              
-              <button
-                onClick={() => setActiveSection('checkoutdata')}
-                className="p-4 bg-purple-50 rounded-xl border border-purple-200 hover:bg-purple-100 transition-all text-left"
-              >
-                <div className="h-8 w-8 bg-purple-100 rounded-lg flex items-center justify-center mb-2">
-                  <BarChart3 className="h-5 w-5 text-purple-600" />
-                </div>
-                <p className="font-semibold text-purple-900">Checkout Data</p>
-                <p className="text-sm text-purple-700">Session history & analytics</p>
-              </button>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <button
+            onClick={() => navigateToSection('checkin')}
+            className="bg-white hover:bg-blue-50 border border-blue-200 hover:border-blue-300 rounded-2xl p-6 text-left transition-all hover:shadow-lg group"
+          >
+            <div className="h-12 w-12 bg-blue-50 rounded-xl flex items-center justify-center border border-blue-100 group-hover:bg-blue-100 transition-colors mb-4">
+              <Plus className="h-6 w-6 text-blue-600" />
             </div>
-          </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Check-in/Out</h3>
+            <p className="text-sm text-gray-600">Mark student attendance and manage sessions</p>
+          </button>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activities</h3>
-            <div className="space-y-4">
-              <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                <div className="h-8 w-8 bg-green-100 rounded-lg flex items-center justify-center">
-                  <Clock className="h-4 w-4 text-green-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900">Student checked in</p>
-                  <p className="text-xs text-gray-500">ID: 23127046 - 2 minutes ago</p>
-                </div>
-              </div>
-              
-              <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                <div className="h-8 w-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <Users className="h-4 w-4 text-blue-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900">New student enrolled</p>
-                  <p className="text-xs text-gray-500">Rahul Kumar - 15 minutes ago</p>
-                </div>
-              </div>
-              
-              <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                <div className="h-8 w-8 bg-yellow-100 rounded-lg flex items-center justify-center">
-                  <BarChart3 className="h-4 w-4 text-yellow-600" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900">Attendance report</p>
-                  <p className="text-xs text-gray-500">Monthly summary - 1 hour ago</p>
-                </div>
-              </div>
+          <button
+            onClick={() => navigateToSection('users')}
+            className="bg-white hover:bg-green-50 border border-green-200 hover:border-green-300 rounded-2xl p-6 text-left transition-all hover:shadow-lg group"
+          >
+            <div className="h-12 w-12 bg-green-50 rounded-xl flex items-center justify-center border border-green-100 group-hover:bg-green-100 transition-colors mb-4">
+              <Users className="h-6 w-6 text-green-600" />
             </div>
-          </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">User Management</h3>
+            <p className="text-sm text-gray-600">View, add, and manage all students</p>
+          </button>
+
+          <button
+            onClick={() => navigateToSection('attendance')}
+            className="bg-white hover:bg-purple-50 border border-purple-200 hover:border-purple-300 rounded-2xl p-6 text-left transition-all hover:shadow-lg group"
+          >
+            <div className="h-12 w-12 bg-purple-50 rounded-xl flex items-center justify-center border border-purple-100 group-hover:bg-purple-100 transition-colors mb-4">
+              <Crown className="h-6 w-6 text-purple-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Attendance Marking</h3>
+            <p className="text-sm text-gray-600">Mark daily attendance for students</p>
+          </button>
+
+          <button
+            onClick={() => navigateToSection('session-data')}
+            className="bg-white hover:bg-orange-50 border border-orange-200 hover:border-orange-300 rounded-2xl p-6 text-left transition-all hover:shadow-lg group"
+          >
+            <div className="h-12 w-12 bg-orange-50 rounded-xl flex items-center justify-center border border-orange-100 group-hover:bg-orange-100 transition-colors mb-4">
+              <LayoutDashboard className="h-6 w-6 text-orange-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Session Data</h3>
+            <p className="text-sm text-gray-600">View session statistics and reports</p>
+          </button>
         </div>
 
-        {/* System Status */}
+        {/* Department Breakdown */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center gap-2">
+            <GraduationCap className="h-5 w-5 text-gray-600" />
+            Department Overview
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+            {getTopDepartments().map((dept, index) => (
+              <div key={index} className="text-center p-4 bg-gray-50 rounded-xl border border-gray-100 hover:bg-gray-100 transition-colors">
+                <p className="text-sm text-gray-600 font-medium mb-2 line-clamp-2">{dept.name}</p>
+                <p className="text-xl font-bold text-gray-900">{dept.count}</p>
+                <p className="text-xs text-gray-500">students</p>
+              </div>
+            ))}
+          </div>
+          {Object.keys(stats.byDepartment).length > 6 && (
+            <div className="text-center mt-4">
+              <p className="text-sm text-gray-500">
+                +{Object.keys(stats.byDepartment).length - 6} more departments
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Recent Activity */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Portal Status</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg border border-green-200">
-              <div className="h-3 w-3 bg-green-500 rounded-full"></div>
-              <span className="text-sm font-medium text-green-800">QR Scanner Ready</span>
-            </div>
-            <div className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg border border-green-200">
-              <div className="h-3 w-3 bg-green-500 rounded-full"></div>
-              <span className="text-sm font-medium text-green-800">Database Connected</span>
-            </div>
-            <div className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg border border-green-200">
-              <div className="h-3 w-3 bg-green-500 rounded-full"></div>
-              <span className="text-sm font-medium text-green-800">Portal Services Active</span>
-            </div>
-          </div>
-        </div>
-        </div>
-      </div>
-    );
-
-  return (
-    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
-      {/* Top Header - Fixed */}
-      <div className="bg-white shadow-sm border-b border-gray-200 flex-shrink-0">
-        <div className="max-w-full mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="h-12 w-12 bg-blue-50 rounded-xl flex items-center justify-center border border-blue-100">
-                <Users className="h-6 w-6 text-blue-600" />
+          <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center gap-2">
+            <Clock className="h-5 w-5 text-gray-600" />
+            Recent Activity
+          </h2>
+          <div className="space-y-3">
+            {recentActivity.map((activity, index) => (
+              <div key={index} className={`flex items-center gap-3 p-4 rounded-xl border ${getActivityColor(activity.type)}`}>
+                {getActivityIcon(activity.type)}
+                <span className="text-sm text-gray-700 flex-1">{activity.message}</span>
+                <span className="text-xs text-gray-500">{activity.time}</span>
               </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Bootcamp Portal</h1>
-                <p className="text-gray-600">Student Attendance Management</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-3">
-              <button className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-xl font-medium transition-all flex items-center space-x-2">
-                <Settings className="h-4 w-4" />
-                <span>Settings</span>
+            ))}
+            <div className="text-center pt-4">
+              <button 
+                onClick={generateRecentActivity}
+                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+              >
+                Refresh Activity
               </button>
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content Area */}
-      <div className="flex flex-1 min-h-0">
-        {/* Sidebar Navigation */}
-        <div className="w-80 bg-white shadow-sm border-r border-gray-200 flex-shrink-0">
-          {/* Sidebar Header */}
-         
-          {/* Navigation Menu */}
-          <div className="p-6">
-            <div className="space-y-2">
-              <button
-                onClick={() => setActiveSection('dashboard')}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-left transition-all duration-200 ${
-                  activeSection === 'dashboard'
-                    ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-sm'
-                    : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
-                }`}
-              >
-                <div className={`h-10 w-10 rounded-lg flex items-center justify-center border ${
-                  activeSection === 'dashboard' 
-                    ? 'bg-blue-100 border-blue-200' 
-                    : 'bg-gray-100 border-gray-200'
-                }`}>
-                  <LayoutDashboard className={`h-5 w-5 ${
-                    activeSection === 'dashboard' ? 'text-blue-600' : 'text-gray-500'
-                  }`} />
-                </div>
-                <div className="flex-1">
-                  <span className="font-semibold text-sm">Overview</span>
-                  <p className="text-xs text-gray-500">Portal statistics</p>
-                </div>
-                {activeSection === 'dashboard' && (
-                  <div className="h-2 w-2 bg-blue-600 rounded-full"></div>
-                )}
-              </button>
-
-              <button
-                onClick={() => setActiveSection('checkinout')}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-left transition-all duration-200 ${
-                  activeSection === 'checkinout' 
-                    ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-sm' 
-                    : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
-                }`}
-              >
-                <div className={`h-10 w-10 rounded-lg flex items-center justify-center border ${
-                  activeSection === 'checkinout' 
-                    ? 'bg-blue-100 border-blue-200' 
-                    : 'bg-gray-100 border-gray-200'
-                }`}>
-                  <Users className={`h-5 w-5 ${
-                    activeSection === 'checkinout' ? 'text-blue-600' : 'text-gray-500'
-                  }`} />
-                </div>
-                <div className="flex-1">
-                  <span className="font-semibold text-sm">Check-in/Out</span>
-                  <p className="text-xs text-gray-500">Manage attendance status</p>
-                </div>
-                {activeSection === 'checkinout' && (
-                  <div className="h-2 w-2 bg-blue-600 rounded-full"></div>
-                )}
-              </button>
-
-              <button
-                onClick={() => setActiveSection('users')}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-left transition-all duration-200 ${
-                  activeSection === 'users' 
-                    ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-sm'
-                    : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
-                }`}
-              >
-                <div className={`h-10 w-10 rounded-lg flex items-center justify-center border ${
-                  activeSection === 'users' 
-                    ? 'bg-blue-100 border-blue-200' 
-                    : 'bg-gray-100 border-gray-200'
-                }`}>
-                  <Users className={`h-5 w-5 ${
-                    activeSection === 'users' ? 'text-blue-600' : 'text-gray-500'
-                  }`} />
-                </div>
-                <div className="flex-1">
-                  <span className="font-semibold text-sm">User Management</span>
-                  <p className="text-xs text-gray-500">Manage students & users</p>
-                </div>
-                {activeSection === 'users' && (
-                  <div className="h-2 w-2 bg-blue-600 rounded-full"></div>
-                )}
-              </button>
-
-              <button
-                onClick={() => setActiveSection('attendance')}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-left transition-all duration-200 ${
-                  activeSection === 'attendance'
-                    ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-sm'
-                    : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
-                }`}
-              >
-                <div className={`h-10 w-10 rounded-lg flex items-center justify-center border ${
-                  activeSection === 'attendance' 
-                    ? 'bg-blue-100 border-blue-200' 
-                    : 'bg-gray-100 border-gray-200'
-                }`}>
-                  <BarChart3 className={`h-5 w-5 ${
-                    activeSection === 'attendance' ? 'text-blue-600' : 'text-gray-500'
-                  }`} />
-                </div>
-                <div className="flex-1">
-                  <span className="font-semibold text-sm">Attendance Marking</span>
-                  <p className="text-xs text-gray-500">Mark & manage attendance</p>
-                </div>
-                {activeSection === 'attendance' && (
-                  <div className="h-2 w-2 bg-blue-600 rounded-full"></div>
-                )}
-              </button>
-
-              <button
-                onClick={() => setActiveSection('checkoutdata')}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-left transition-all duration-200 ${
-                  activeSection === 'checkoutdata'
-                    ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-sm'
-                    : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
-                }`}
-              >
-                <div className={`h-10 w-10 rounded-lg flex items-center justify-center border ${
-                  activeSection === 'checkoutdata' 
-                    ? 'bg-blue-100 border-blue-200' 
-                    : 'bg-gray-100 border-gray-200'
-                }`}>
-                  <BarChart3 className={`h-5 w-5 ${
-                    activeSection === 'checkoutdata' ? 'text-blue-600' : 'text-gray-500'
-                  }`} />
-                </div>
-                <div className="flex-1">
-                  <span className="font-semibold text-sm">Checkout Data</span>
-                  <p className="text-xs text-gray-500">Session history & analytics</p>
-                </div>
-                {activeSection === 'checkoutdata' && (
-                  <div className="h-2 w-2 bg-blue-600 rounded-full"></div>
-                )}
-              </button>
-        </div>
-
-            {/* Admin Profile Section */}
-            <div className="mt-6 p-4 bg-blue-50 rounded-xl border border-blue-100">
-              <div className="flex items-center space-x-3">
-                <div className="h-10 w-10 bg-blue-100 rounded-xl flex items-center justify-center border border-blue-200">
-                  <span className="text-blue-600 font-bold text-sm">A</span>
-                      </div>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-gray-900">Portal Admin</p>
-                  <p className="text-xs text-gray-600">Bootcamp Manager</p>
-                  </div>
-                </div>
-                  </div>
-                </div>
-              </div>
-
-        {/* Main Content - Scrollable Container */}
-        <div className="flex-1 overflow-hidden">
-          <div className="h-full overflow-y-auto">
-            {renderSection()}
           </div>
         </div>
       </div>

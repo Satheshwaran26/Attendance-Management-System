@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Search,
   CheckCircle,
+
   AlertCircle
 } from 'lucide-react';
 import type { Student } from '../types';
@@ -13,11 +14,14 @@ const AttendanceMarkingPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [dbStatus, setDbStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
   const [attendanceStatus, setAttendanceStatus] = useState<'present' | null>(null);
+
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
 
-  const API_BASE = 'http://localhost:5000/api';
+  const API_BASE = process.env.NODE_ENV === 'production' 
+    ? 'https://attendance-management-system-z2cc.onrender.com/api' 
+    : 'http://localhost:5000/api';
 
   const checkDatabaseStatus = async () => {
     try {
@@ -82,7 +86,8 @@ const AttendanceMarkingPage: React.FC = () => {
     
     try {
       console.log('Searching for register number:', searchTerm.trim());
-      const response = await fetch(`${API_BASE}/students/search?register_number=${searchTerm.trim()}`);
+      // Use the search endpoint with query parameter 'q' instead of 'register_number'
+      const response = await fetch(`${API_BASE}/students/search?q=${encodeURIComponent(searchTerm.trim())}`);
       console.log('Search response status:', response.status);
       
       if (!response.ok) {
@@ -93,7 +98,16 @@ const AttendanceMarkingPage: React.FC = () => {
       console.log('Search response data:', data);
       
       if (data && data.length > 0) {
-        const student = data[0];
+        // Find the student with exact register number match
+        const student = data.find((s: any) => s.register_number === searchTerm.trim());
+        
+        if (!student) {
+          setSelectedStudent(null);
+          setAttendanceStatus(null);
+          setErrorMessage('Please enter a valid register number. Student not found.');
+          return;
+        }
+        
         console.log('Found student:', student);
         
         const transformedStudent: Student = {
@@ -116,26 +130,45 @@ const AttendanceMarkingPage: React.FC = () => {
         console.log('Transformed student:', transformedStudent);
         setSelectedStudent(transformedStudent);
         
-                 // Check if attendance already exists for today
-         const existingAttendance = await checkExistingAttendance(transformedStudent.id, selectedDate);
-         console.log('Existing attendance check:', existingAttendance);
-         
-         if (existingAttendance.exists && !existingAttendance.canMarkPresent) {
-           // Student is already present and not checked out
-           setAttendanceStatus('present');
-           setSuccessMessage(`⚠️ ${transformedStudent.name} is already registered for today!`);
-         } else if (existingAttendance.exists && existingAttendance.isCheckedOut) {
-           // Student was checked out, can be marked present again
-           setAttendanceStatus(null);
-           setSuccessMessage(`✅ ${transformedStudent.name} was checked out earlier. Marking as present again...`);
-           // Automatically mark as present immediately
-           await handleMarkAttendance();
-         } else {
-           // No attendance record exists, can mark as present
-           setAttendanceStatus(null);
-           // Automatically mark as present immediately
-           await handleMarkAttendance();
-         }
+        // Check if attendance already exists for today
+        const existingAttendance = await checkExistingAttendance(transformedStudent.id, selectedDate);
+        console.log('Existing attendance check:', existingAttendance);
+        
+        if (existingAttendance.exists && !existingAttendance.canMarkPresent) {
+          // Student is already present and not checked out
+          setAttendanceStatus('present');
+          setSuccessMessage(`⚠️ ${transformedStudent.name} is already registered for today!`);
+          
+          // Dispatch event to notify CheckIn/Out page that student is already present
+          const event = new CustomEvent('studentAlreadyPresent', {
+            detail: { 
+              action: 'alreadyPresent',
+              studentId: transformedStudent.id, 
+              studentName: transformedStudent.name,
+              registerNumber: transformedStudent.registerNumber,
+              timestamp: new Date().toISOString(),
+              date: selectedDate
+            }
+          });
+          window.dispatchEvent(event);
+          
+          // IMPORTANT: Don't call handleMarkAttendance() - preserve existing data
+          return;
+        } else if (existingAttendance.exists && existingAttendance.isCheckedOut) {
+          // Student was checked out, can be marked present again (re-registration)
+          setAttendanceStatus(null);
+          setSuccessMessage(`✅ ${transformedStudent.name} was checked out earlier. Re-registering for new session...`);
+          
+          // For re-registration, create a NEW attendance record, don't update existing
+          await handleReRegistration(transformedStudent);
+        } else {
+          // No attendance record exists, can mark as present (first time)
+          setAttendanceStatus(null);
+          setSuccessMessage(`✅ ${transformedStudent.name} marked as present for the first time today!`);
+          
+          // Automatically mark as present immediately
+          await handleMarkAttendance();
+        }
       } else {
         console.log('No students found in response');
         setSelectedStudent(null);
@@ -162,15 +195,15 @@ const AttendanceMarkingPage: React.FC = () => {
     try {
       console.log('Marking attendance for student:', selectedStudent.id, 'on date:', selectedDate);
       
-             // Check again if attendance already exists
-       const existingAttendance = await checkExistingAttendance(selectedStudent.id, selectedDate);
-       console.log('Double-check existing attendance:', existingAttendance);
-       
-       if (existingAttendance.exists && !existingAttendance.canMarkPresent) {
-         setAttendanceStatus('present');
-         setSuccessMessage(`${selectedStudent.name} is already registered for today!`);
-         return;
-       }
+      // Check again if attendance already exists
+      const existingAttendance = await checkExistingAttendance(selectedStudent.id, selectedDate);
+      console.log('Double-check existing attendance:', existingAttendance);
+      
+      if (existingAttendance.exists && !existingAttendance.canMarkPresent) {
+        setAttendanceStatus('present');
+        setSuccessMessage(`${selectedStudent.name} is already registered for today!`);
+        return;
+      }
 
       const attendanceData = {
         student_id: selectedStudent.id,
@@ -196,14 +229,16 @@ const AttendanceMarkingPage: React.FC = () => {
         const errorData = await response.json().catch(() => ({}));
         console.error('Attendance error response:', errorData);
         
-                 // Check if it's a duplicate error
-         if (errorData.error && errorData.error.includes('already present')) {
-           setAttendanceStatus('present');
-           setSuccessMessage(`⚠️ ${selectedStudent.name} is already registered for today!`);
-           return;
-         }
+        // Check if it's a duplicate error
+        if (errorData.error && errorData.error.includes('already present')) {
+          setAttendanceStatus('present');
+          setSuccessMessage(`⚠️ ${selectedStudent.name} is already registered for today!`);
+          return;
+        }
         
-        throw new Error(`Failed to mark attendance: ${errorData.error || response.statusText}`);
+        // Throw a clean error message
+        const errorMsg = errorData.error || response.statusText || 'Unknown error';
+        throw new Error(errorMsg);
       }
 
       const result = await response.json();
@@ -219,10 +254,29 @@ const AttendanceMarkingPage: React.FC = () => {
       
       // Dispatch custom event to notify other components
       const event = new CustomEvent('attendanceUpdated', {
-        detail: { studentId: selectedStudent.id, studentName: selectedStudent.name }
+        detail: { 
+          action: 'markPresent',
+          studentId: selectedStudent.id, 
+          studentName: selectedStudent.name,
+          registerNumber: selectedStudent.registerNumber,
+          timestamp: new Date().toISOString(),
+          date: selectedDate
+        }
       });
       console.log('Dispatching attendanceUpdated event:', event.detail);
       window.dispatchEvent(event);
+      
+      // Also dispatch a specific event for CheckIn/Out page
+      const checkInEvent = new CustomEvent('studentCheckedIn', {
+        detail: {
+          studentId: selectedStudent.id,
+          studentName: selectedStudent.name,
+          registerNumber: selectedStudent.registerNumber,
+          checkInTime: new Date().toISOString(),
+          date: selectedDate
+        }
+      });
+      window.dispatchEvent(checkInEvent);
       
       // Clear the search term after successful marking
       setTimeout(() => {
@@ -235,8 +289,99 @@ const AttendanceMarkingPage: React.FC = () => {
       
     } catch (error) {
       console.error('Error marking attendance:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       setErrorMessage(`Failed to mark attendance: ${errorMessage}`);
+    }
+  };
+
+  const handleReRegistration = async (student: Student) => {
+    if (!student) return;
+
+    setErrorMessage('');
+    setSuccessMessage('');
+    
+    try {
+      console.log('Handling re-registration for student:', student.id, 'on date:', selectedDate);
+      
+      // Create a new attendance record for re-registration
+      const reRegistrationData = {
+        student_id: student.id,
+        date: selectedDate,
+        status: 'present',
+        check_in_time: new Date().toISOString(),
+        notes: 'Re-registered for new session'
+      };
+
+      console.log('Sending re-registration data:', reRegistrationData);
+
+      const response = await fetch(`${API_BASE}/attendance`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(reRegistrationData),
+      });
+
+      console.log('Re-registration response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Re-registration error response:', errorData);
+        
+        const errorMsg = errorData.error || response.statusText || 'Unknown error';
+        throw new Error(errorMsg);
+      }
+
+      const result = await response.json();
+      console.log('Re-registration marked successfully:', result);
+
+      setAttendanceStatus('present');
+      setSuccessMessage(`✅ ${student.name} re-registered as present successfully!`);
+      
+      // Show success popup with a small delay to ensure it's visible
+      setTimeout(() => {
+        setShowSuccessPopup(true);
+      }, 100);
+      
+      // Dispatch custom event to notify other components
+      const event = new CustomEvent('attendanceUpdated', {
+        detail: { 
+          action: 'reRegisterPresent',
+          studentId: student.id, 
+          studentName: student.name,
+          registerNumber: student.registerNumber,
+          timestamp: new Date().toISOString(),
+          date: selectedDate
+        }
+      });
+      console.log('Dispatching reRegisterAttendanceUpdated event:', event.detail);
+      window.dispatchEvent(event);
+      
+      // Also dispatch a specific event for CheckIn/Out page
+      const checkInEvent = new CustomEvent('studentCheckedIn', {
+        detail: {
+          studentId: student.id,
+          studentName: student.name,
+          registerNumber: student.registerNumber,
+          checkInTime: new Date().toISOString(),
+          date: selectedDate
+        }
+      });
+      window.dispatchEvent(checkInEvent);
+      
+      // Clear the search term after successful re-registration
+      setTimeout(() => {
+        setSearchTerm('');
+        setSelectedStudent(null);
+        setAttendanceStatus(null);
+        setSuccessMessage('');
+        setShowSuccessPopup(false);
+      }, 2000);
+      
+    } catch (error) {
+      console.error('Error handling re-registration:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      setErrorMessage(`Failed to re-register attendance: ${errorMessage}`);
     }
   };
 
