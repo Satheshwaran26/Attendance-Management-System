@@ -9,7 +9,8 @@ import {
   Lock,
   Eye,
   EyeOff,
-  RefreshCw
+  RefreshCw,
+  Download
 } from 'lucide-react';
 
 const CheckInOutPage: React.FC = () => {
@@ -26,6 +27,8 @@ const CheckInOutPage: React.FC = () => {
   const [dbStatus, setDbStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
   const [successMessage, setSuccessMessage] = useState('');
   const [selectedSession, setSelectedSession] = useState<'session1' | 'session2'>('session1');
+  const [showIndividualCheckoutModal, setShowIndividualCheckoutModal] = useState(false);
+  const [selectedStudentId, setSelectedStudentId] = useState<string>('');
 
   const API_BASE = 'http://localhost:5000/api';
 
@@ -186,7 +189,7 @@ const CheckInOutPage: React.FC = () => {
         },
         body: JSON.stringify({
           check_out_time: new Date().toISOString(),
-          session: 'session1' // Default to session1 for individual checkouts
+          session: selectedSession
         }),
       });
 
@@ -389,7 +392,7 @@ const CheckInOutPage: React.FC = () => {
           setSuccessMessage('');
         }, 5000);
         
-        // Refresh data to ensure consistency
+       
         await loadData();
       } else {
         setPasswordError(`Failed to checkout any students. ${failedCheckouts.length} attempts failed. Please try again.`);
@@ -410,6 +413,88 @@ const CheckInOutPage: React.FC = () => {
     const checkedOut = attendanceRecords.filter(record => record.checkedOut).length;
     
     return { total, checkedIn, checkedOut };
+  };
+
+  // Helper function to format time correctly without timezone issues
+  const formatTimeCorrectly = (date: Date) => {
+    // Get the date components in local time
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    
+    return `${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`;
+  };
+
+  const downloadAttendanceData = () => {
+    try {
+      // Use filtered records if search/filter is applied, otherwise use all records
+      const dataToDownload = filteredRecords.length > 0 && (searchTerm.trim() || filterStatus !== 'all') 
+        ? filteredRecords 
+        : attendanceRecords;
+      
+      // Prepare data for download
+      const downloadData = dataToDownload.map(record => ({
+        'Student Name': record.userName,
+        'Register Number': record.userId,
+        'Check-in Time': formatTimeCorrectly(record.timestamp),
+        'Check-out Time': record.checkoutTime ? formatTimeCorrectly(record.checkoutTime) : 'Present',
+        'Status': record.checkedOut ? 'Checked Out' : 'Present'
+      }));
+
+      // Create CSV content with metadata
+      const currentDate = new Date().toLocaleDateString();
+      const currentTime = new Date().toLocaleTimeString();
+      const totalRecords = downloadData.length;
+      
+      const metadata = [
+        `Attendance Report`,
+        `Generated on: ${currentDate} at ${currentTime}`,
+        `Total Records: ${totalRecords}`,
+        `Filter Applied: ${searchTerm.trim() ? `Search: "${searchTerm}"` : 'None'}`,
+        `Status Filter: ${filterStatus !== 'all' ? filterStatus : 'All'}`,
+        ``
+      ].join('\n');
+      
+      const headers = Object.keys(downloadData[0] || {});
+      const csvContent = [
+        metadata,
+        headers.join(','),
+        ...downloadData.map(row => 
+          headers.map(header => {
+            const value = row[header as keyof typeof row];
+            // Escape commas and quotes in CSV
+            if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+              return `"${value.replace(/"/g, '""')}"`;
+            }
+            return value;
+          }).join(',')
+        )
+      ].join('\n');
+
+      // Create and download file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `attendance_data_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      // Show success message
+      setSuccessMessage('Attendance data downloaded successfully!');
+      setTimeout(() => {
+        setSuccessMessage('');
+      }, 3000);
+    } catch (error) {
+      console.error('Error downloading data:', error);
+      setPasswordError('Failed to download attendance data. Please try again.');
+    }
   };
 
   const stats = getStats();
@@ -541,6 +626,17 @@ const CheckInOutPage: React.FC = () => {
                     </div>
 
                     <div className="flex space-x-3">
+                      {/* Download Button */}
+                      <button
+                        onClick={downloadAttendanceData}
+                        disabled={attendanceRecords.length === 0}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-xl font-medium transition-all flex items-center space-x-2 disabled:cursor-not-allowed"
+                        title={`Download ${filteredRecords.length > 0 && (searchTerm.trim() || filterStatus !== 'all') ? 'filtered' : 'all'} attendance data as CSV file`}
+                      >
+                        <Download className="h-4 w-4" />
+                        <span>Download CSV</span>
+                      </button>
+
                       {/* Refresh Button */}
                       <button
                         onClick={() => {
@@ -609,10 +705,10 @@ const CheckInOutPage: React.FC = () => {
                               {record.userId}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {record.timestamp.toLocaleString()}
+                              {formatTimeCorrectly(record.timestamp)}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {record.checkoutTime ? record.checkoutTime.toLocaleString() : '-'}
+                              {record.checkoutTime ? formatTimeCorrectly(record.checkoutTime) : '-'}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -636,7 +732,10 @@ const CheckInOutPage: React.FC = () => {
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                               {!record.checkedOut && (
                                 <button
-                                  onClick={() => handleCheckout(record.id)}
+                                  onClick={() => {
+                                    setSelectedStudentId(record.id);
+                                    setShowIndividualCheckoutModal(true);
+                                  }}
                                   className="text-red-600 hover:text-red-800 hover:bg-red-50 px-3 py-1 rounded-lg transition-all flex items-center space-x-1"
                                 >
                                   <LogOut className="h-4 w-4" />
@@ -662,6 +761,134 @@ const CheckInOutPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Individual Checkout Modal */}
+      {showIndividualCheckoutModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <div className="text-center mb-6">
+                <div className="mx-auto flex items-center justify-center h-16 w-16 bg-red-50 rounded-2xl mb-4 border border-red-100">
+                  <Lock className="h-8 w-8 text-red-600" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-900 mb-2">
+                  Checkout Student
+                </h2>
+                <p className="text-gray-600">
+                  Please select a session and enter admin password to checkout this student.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {/* Session Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select Session *
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSession('session1')}
+                      className={`p-3 rounded-xl border-2 transition-all ${
+                        selectedSession === 'session1'
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="text-center">
+                        <div className="text-lg font-semibold">Session 1</div>
+                        <div className="text-sm opacity-75">Morning</div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSession('session2')}
+                      className={`p-3 rounded-xl border-2 transition-all ${
+                        selectedSession === 'session2'
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="text-center">
+                        <div className="text-lg font-semibold">Session 2</div>
+                        <div className="text-sm opacity-75">Afternoon</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Password Input */}
+                <div>
+                  <label htmlFor="individual-password" className="block text-sm font-medium text-gray-700 mb-2">
+                    Admin Password *
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="individual-password"
+                      type={showPassword ? 'text' : 'password'}
+                      value={adminPassword}
+                      onChange={(e) => {
+                        setAdminPassword(e.target.value);
+                        setPasswordError('');
+                      }}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all pr-12"
+                      placeholder="Enter admin password"
+                    />
+                    <button
+                      type="button"
+                      className="absolute inset-y-0 right-0 pr-4 flex items-center"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                      ) : (
+                        <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                      )}
+                    </button>
+                  </div>
+                  {passwordError && (
+                    <p className="mt-1 text-sm text-red-600">{passwordError}</p>
+                  )}
+                 
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowIndividualCheckoutModal(false);
+                    setAdminPassword('');
+                    setPasswordError('');
+                    setSelectedStudentId('');
+                  }}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (adminPassword === 'admin123') {
+                      handleCheckout(selectedStudentId);
+                      setShowIndividualCheckoutModal(false);
+                      setAdminPassword('');
+                      setSelectedStudentId('');
+                    } else {
+                      setPasswordError('Invalid password');
+                    }
+                  }}
+                  disabled={!adminPassword.trim() || !selectedSession || isProcessing}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white rounded-xl font-medium transition-all disabled:cursor-not-allowed flex items-center space-x-2"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span>Checkout</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Checkout All Modal */}
       {showCheckoutAllModal && (
@@ -750,9 +977,7 @@ const CheckInOutPage: React.FC = () => {
                   {passwordError && (
                     <p className="mt-1 text-sm text-red-600">{passwordError}</p>
                   )}
-                  <p className="mt-1 text-xs text-gray-500">
-                    Demo password: admin123
-                  </p>
+                
                 </div>
               </div>
 
