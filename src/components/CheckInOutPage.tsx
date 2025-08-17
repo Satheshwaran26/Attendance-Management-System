@@ -35,7 +35,9 @@ const CheckInOutPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [isPasswordVerifying, setIsPasswordVerifying] = useState(false);
 
-  const API_BASE = 'http://localhost:5000/api';
+  const API_BASE = process.env.NODE_ENV === 'production'
+    ? 'https://attendance-management-system-z2cc.onrender.com/api'
+    : 'http://localhost:5000/api';
 
   // Password verification function
   const verifyPassword = async () => {
@@ -774,17 +776,18 @@ const CheckInOutPage: React.FC = () => {
                     Admin Password *
                   </label>
                   <div className="relative">
-                    <input
-                      id="password"
-                      type={showPassword ? 'text' : 'password'}
-                      value={adminPassword}
-                      onChange={(e) => {
-                        setAdminPassword(e.target.value);
-                        setPasswordError('');
-                      }}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all pr-12"
-                      placeholder="Enter admin password"
-                    />
+                                          <input
+                        id="password"
+                        type={showPassword ? 'text' : 'password'}
+                        value={adminPassword}
+                        onChange={(e) => {
+                          setAdminPassword(e.target.value);
+                          setPasswordError('');
+                        }}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all pr-12"
+                        placeholder="Enter admin password"
+                        autoComplete="current-password"
+                      />
                     <button
                       type="button"
                       className="absolute inset-y-0 right-0 pr-4 flex items-center"

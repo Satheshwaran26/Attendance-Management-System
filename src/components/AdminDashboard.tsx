@@ -133,7 +133,7 @@ const AdminDashboard: React.FC = () => {
             <div className="flex items-center gap-4">
               <div className="h-16 w-16 bg-blue-50 rounded-2xl flex items-center justify-center border border-blue-100">
                 <img 
-                  src="/src/assets/generated-image (1).png" 
+                  src="/src/assets/generated-image%20(1).png" 
                   alt="Logo" 
                   className="h-10 w-10"
                 />

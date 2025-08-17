@@ -41,7 +41,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             <div className="flex items-center space-x-4">
               <div className="h-12 w-12 rounded-xl flex items-center justify-center border border-blue-100 overflow-hidden">
                 <img 
-                  src="/src/assets/generated-image (1).png" 
+                  src="/src/assets/generated-image%20(1).png" 
                   alt="Bootcamp Portal Logo" 
                   className="h-full w-full object-cover"
                 />
