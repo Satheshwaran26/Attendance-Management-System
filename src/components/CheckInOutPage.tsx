@@ -241,64 +241,7 @@ const CheckInOutPage: React.FC = () => {
     setFilteredRecords(filtered);
   };
 
-  const handleCheckout = async (recordId: string) => {
-    try {
-      // Clear any existing messages
-      setSuccessMessage('');
-      setPasswordError('');
-      
-      // Find the record to checkout
-      const record = attendanceRecords.find(r => r.id === recordId);
-      if (!record) return;
 
-      // Update the record in the backend
-      const response = await fetch(`${API_BASE}/attendance/${recordId}/checkout`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          check_out_time: new Date().toISOString(),
-          session: 'session1' // Default to session1 for individual checkouts
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Checkout error response:', errorData);
-        throw new Error(errorData.error || 'Failed to checkout user');
-      }
-
-      // Remove the student from the list immediately
-      const remainingRecords = attendanceRecords.filter(r => r.id !== recordId);
-      setAttendanceRecords(remainingRecords);
-      
-      // Show success message
-      setSuccessMessage(`Successfully checked out ${record.userName}!`);
-      
-      // Dispatch event to notify other components (like SessionDataPage)
-      window.dispatchEvent(new CustomEvent('attendanceUpdated', { 
-        detail: { 
-          action: 'checkout', 
-          studentId: record.id, 
-          studentName: record.userName,
-          timestamp: new Date().toISOString()
-        } 
-      }));
-      
-      // Clear success message after 3 seconds
-      setTimeout(() => {
-        setSuccessMessage('');
-      }, 3000);
-      
-      // Reload data to ensure consistency
-      await loadData();
-    } catch (error) {
-      console.error('Error checking out user:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      setPasswordError(`Failed to checkout: ${errorMessage}`);
-    }
-  };
 
   const handleIndividualCheckout = (recordId: string) => {
     const student = attendanceRecords.find(record => record.id === recordId);
