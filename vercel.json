@@ -1,24 +1,40 @@
 {
+  "version": 2,
   "routes": [
     {
-      "src": "/favicon.ico",
-      "dest": "/favicon.ico"
+      "handle": "filesystem"
     },
     {
-      "src": "/assets/(.*)",
-      "dest": "/assets/$1"
+      "src": "/dashboard",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/login",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/admin",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/checkin",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/session-data",
+      "dest": "/index.html"
     },
     {
       "src": "/(.*)",
-      "dest": "/index.html",
-      "headers": {
-        "Cache-Control": "s-maxage=1, stale-while-revalidate"
-      }
+      "dest": "/index.html"
     }
   ],
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
   "rewrites": [
-    { 
-      "source": "/((?!api/.*).*)",
+    {
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ]
