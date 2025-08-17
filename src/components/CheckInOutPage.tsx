@@ -26,48 +26,8 @@ const CheckInOutPage: React.FC = () => {
   const [dbStatus, setDbStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
   const [successMessage, setSuccessMessage] = useState('');
   const [selectedSession, setSelectedSession] = useState<'session1' | 'session2'>('session1');
-  const [showIndividualCheckoutModal, setShowIndividualCheckoutModal] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState<AttendanceRecord | null>(null);
-  const [individualSession, setIndividualSession] = useState<'session1' | 'session2'>('session1');
-  const [checkoutNotes, setCheckoutNotes] = useState('');
-  const [isIndividualCheckoutProcessing, setIsIndividualCheckoutProcessing] = useState(false);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [password, setPassword] = useState('');
-  const [isPasswordVerifying, setIsPasswordVerifying] = useState(false);
 
-  const API_BASE = process.env.NODE_ENV === 'production'
-    ? 'https://attendance-management-system-z2cc.onrender.com/api'
-    : 'http://localhost:5000/api';
-
-  // Password verification function
-  const verifyPassword = async () => {
-    if (!password.trim()) {
-      setPasswordError('Password is required');
-      return false;
-    }
-
-    setIsPasswordVerifying(true);
-    setPasswordError('');
-
-    try {
-      // Simple password check - you can modify this to use a more secure method
-      if (password === 'admin123') { // Change this to your desired password
-        setShowPasswordModal(false);
-        setPassword('');
-        setPasswordError('');
-        handlePasswordVerified(); // Call this function when password is verified
-        return true;
-      } else {
-        setPasswordError('Incorrect password');
-        return false;
-      }
-    } catch (error) {
-      setPasswordError('Password verification failed');
-      return false;
-    } finally {
-      setIsPasswordVerifying(false);
-    }
-  };
+  const API_BASE = 'http://localhost:5000/api';
 
   const checkDatabaseStatus = async () => {
     try {
@@ -95,37 +55,6 @@ const CheckInOutPage: React.FC = () => {
       loadData();
     };
     
-    // Listen for new students being marked present
-    const handleStudentCheckedIn = (event: any) => {
-      console.log('New student checked in:', event.detail);
-      // Immediately add the new student to the list
-      const newStudent = {
-        id: event.detail.studentId,
-        userId: event.detail.registerNumber,
-        userName: event.detail.studentName,
-        timestamp: new Date(event.detail.checkInTime),
-        checkoutTime: undefined,
-        checkedOut: false,
-        qrCodeId: event.detail.studentId
-      };
-      
-      setAttendanceRecords(prev => {
-        // Check if student already exists
-        const exists = prev.some(s => s.id === newStudent.id);
-        if (!exists) {
-          return [...prev, newStudent];
-        }
-        return prev;
-      });
-    };
-    
-    // Listen for students who are already present (re-registration attempt)
-    const handleStudentAlreadyPresent = (event: any) => {
-      console.log('Student already present (re-registration attempt):', event.detail);
-      // Don't add to list since they're already there
-      // Just ensure they remain visible on the CheckIn/Out page
-    };
-    
     // Listen for page visibility changes to refresh data when tab becomes active
     const handleVisibilityChange = () => {
       if (!document.hidden) {
@@ -135,8 +64,6 @@ const CheckInOutPage: React.FC = () => {
     };
     
     window.addEventListener('attendanceUpdated', handleAttendanceUpdate);
-    window.addEventListener('studentCheckedIn', handleStudentCheckedIn);
-    window.addEventListener('studentAlreadyPresent', handleStudentAlreadyPresent);
     document.addEventListener('visibilitychange', handleVisibilityChange);
     
     // Set up periodic refresh every 30 seconds to keep data current
@@ -147,8 +74,6 @@ const CheckInOutPage: React.FC = () => {
     
     return () => {
       window.removeEventListener('attendanceUpdated', handleAttendanceUpdate);
-      window.removeEventListener('studentCheckedIn', handleStudentCheckedIn);
-      window.removeEventListener('studentAlreadyPresent', handleStudentAlreadyPresent);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       clearInterval(intervalId);
     };
@@ -243,20 +168,63 @@ const CheckInOutPage: React.FC = () => {
     setFilteredRecords(filtered);
   };
 
+  const handleCheckout = async (recordId: string) => {
+    try {
+      // Clear any existing messages
+      setSuccessMessage('');
+      setPasswordError('');
+      
+      // Find the record to checkout
+      const record = attendanceRecords.find(r => r.id === recordId);
+      if (!record) return;
 
+      // Update the record in the backend
+      const response = await fetch(`${API_BASE}/attendance/${recordId}/checkout`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          check_out_time: new Date().toISOString(),
+          session: 'session1' // Default to session1 for individual checkouts
+        }),
+      });
 
-  const handleIndividualCheckout = (recordId: string) => {
-    const student = attendanceRecords.find(record => record.id === recordId);
-    if (student) {
-      setSelectedStudent(student);
-      setIndividualSession('session1');
-      setCheckoutNotes('');
-      setShowPasswordModal(true); // Show password modal first
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Checkout error response:', errorData);
+        throw new Error(errorData.error || 'Failed to checkout user');
+      }
+
+      // Remove the student from the list immediately
+      const remainingRecords = attendanceRecords.filter(r => r.id !== recordId);
+      setAttendanceRecords(remainingRecords);
+      
+      // Show success message
+      setSuccessMessage(`Successfully checked out ${record.userName}!`);
+      
+      // Dispatch event to notify other components (like SessionDataPage)
+      window.dispatchEvent(new CustomEvent('attendanceUpdated', { 
+        detail: { 
+          action: 'checkout', 
+          studentId: record.id, 
+          studentName: record.userName,
+          timestamp: new Date().toISOString()
+        } 
+      }));
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccessMessage('');
+      }, 3000);
+      
+      // Reload data to ensure consistency
+      await loadData();
+    } catch (error) {
+      console.error('Error checking out user:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setPasswordError(`Failed to checkout: ${errorMessage}`);
     }
-  };
-
-  const handlePasswordVerified = () => {
-    setShowIndividualCheckoutModal(true); // Show individual checkout modal after password verification
   };
 
   const handleCheckoutAll = async () => {
@@ -321,35 +289,15 @@ const CheckInOutPage: React.FC = () => {
             selectedSession === 'session1' ? 'Session 1 (Morning)' : 'Session 2 (Afternoon)'
           }`);
 
-          // Dispatch event to notify other components (like SessionDataPage)
-          window.dispatchEvent(new CustomEvent('attendanceUpdated', { 
-            detail: { 
-              action: 'checkoutAll', 
-              count: successCount, 
-              session: selectedSession,
-              timestamp: new Date().toISOString(),
-              students: successfulCheckouts,
-              date: new Date().toISOString().split('T')[0]
-            } 
-          }));
-          
-          // Also dispatch a specific event for Session Data page
-          const sessionDataEvent = new CustomEvent('sessionDataUpdated', {
+          window.dispatchEvent(new CustomEvent('attendanceUpdated', {
             detail: {
               action: 'checkoutAll',
+              count: successCount,
               session: selectedSession,
-              students: successfulCheckouts.map(sc => ({
-                id: sc.id,
-                studentId: sc.registerNumber,
-                studentName: sc.name,
-                checkInTime: sc.checkInTime,
-                checkOutTime: sc.checkOutTime,
-                session: sc.session,
-                date: new Date().toISOString().split('T')[0]
-              }))
+              timestamp: new Date().toISOString(),
+              students: successfulCheckouts
             }
-          });
-          window.dispatchEvent(sessionDataEvent);
+          }));
 
           setShowCheckoutAllModal(false);
           setAdminPassword('');
@@ -688,7 +636,7 @@ const CheckInOutPage: React.FC = () => {
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                               {!record.checkedOut && (
                                 <button
-                                  onClick={() => handleIndividualCheckout(record.id)}
+                                  onClick={() => handleCheckout(record.id)}
                                   className="text-red-600 hover:text-red-800 hover:bg-red-50 px-3 py-1 rounded-lg transition-all flex items-center space-x-1"
                                 >
                                   <LogOut className="h-4 w-4" />
@@ -732,7 +680,7 @@ const CheckInOutPage: React.FC = () => {
                 </p>
               </div>
 
-                                           <div className="space-y-4">
+                             <div className="space-y-4">
                 {/* Session Selection */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -784,9 +732,8 @@ const CheckInOutPage: React.FC = () => {
                         setAdminPassword(e.target.value);
                         setPasswordError('');
                       }}
-                      className="w-full px-4 py-2 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all pr-12"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all pr-12"
                       placeholder="Enter admin password"
-                      autoComplete="current-password"
                     />
                     <button
                       type="button"
@@ -836,305 +783,6 @@ const CheckInOutPage: React.FC = () => {
                     <>
                       <LogOut className="h-4 w-4" />
                       <span>Checkout All</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Password Verification Modal */}
-      {showPasswordModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full">
-            <div className="p-6">
-              <div className="text-center mb-6">
-                <div className="mx-auto flex items-center justify-center h-16 w-16 bg-blue-50 rounded-2xl mb-4 border border-blue-100">
-                  <Lock className="h-8 w-8 text-blue-600" />
-                </div>
-                <h2 className="text-xl font-bold text-gray-900 mb-2">
-                  Password Verification
-                </h2>
-                <p className="text-gray-600">
-                  Please enter the admin password to confirm this action.
-                </p>
-              </div>
-
-              <div className="space-y-4">
-                {/* Password Input */}
-                <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                    Admin Password *
-                  </label>
-                  <div className="relative">
-                    <input
-                      id="password"
-                      type={showPassword ? 'text' : 'password'}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all pr-12"
-                      placeholder="Enter admin password"
-                    />
-                    <button
-                      type="button"
-                      className="absolute inset-y-0 right-0 pr-4 flex items-center"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                      ) : (
-                        <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                      )}
-                    </button>
-                  </div>
-                  {passwordError && (
-                    <p className="mt-1 text-sm text-red-600">{passwordError}</p>
-                  )}
-                  <p className="mt-1 text-xs text-gray-500">
-                    Demo password: admin123
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex justify-end space-x-3 pt-6">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowPasswordModal(false);
-                    setPassword('');
-                    setPasswordError('');
-                  }}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={verifyPassword}
-                  disabled={isPasswordVerifying}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-xl font-medium transition-all disabled:cursor-not-allowed flex items-center space-x-2"
-                >
-                  {isPasswordVerifying ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      <span>Verifying...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Lock className="h-4 w-4" />
-                      <span>Verify Password</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Individual Checkout Modal */}
-      {showIndividualCheckoutModal && selectedStudent && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full">
-            <div className="p-6">
-              <div className="text-center mb-6">
-                <div className="mx-auto flex items-center justify-center h-16 w-16 bg-red-50 rounded-2xl mb-4 border border-red-100">
-                  <Lock className="h-8 w-8 text-red-600" />
-                </div>
-                <h2 className="text-xl font-bold text-gray-900 mb-2">
-                  Individual Checkout for {selectedStudent.userName}
-                </h2>
-                <p className="text-gray-600">
-                  Please enter the admin password to confirm this individual checkout.
-                </p>
-              </div>
-
-              <div className="space-y-4">
-                {/* Session Selection */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Select Session *
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setIndividualSession('session1')}
-                      className={`p-3 rounded-xl border-2 transition-all ${
-                        individualSession === 'session1'
-                          ? 'border-blue-500 bg-blue-50 text-blue-700'
-                          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="text-center">
-                        <div className="text-lg font-semibold">Session 1</div>
-                        <div className="text-sm opacity-75">Morning</div>
-                      </div>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIndividualSession('session2')}
-                      className={`p-3 rounded-xl border-2 transition-all ${
-                        individualSession === 'session2'
-                          ? 'border-blue-500 bg-blue-50 text-blue-700'
-                          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="text-center">
-                        <div className="text-lg font-semibold">Session 2</div>
-                        <div className="text-sm opacity-75">Afternoon</div>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Checkout Notes */}
-                <div>
-                  <label htmlFor="checkoutNotes" className="block text-sm font-medium text-gray-700 mb-2">
-                    Checkout Notes (Optional)
-                  </label>
-                  <textarea
-                    id="checkoutNotes"
-                    value={checkoutNotes}
-                    onChange={(e) => setCheckoutNotes(e.target.value)}
-                    rows={3}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="Add any notes for the checkout..."
-                  />
-                </div>
-
-                {/* Password Input */}
-                <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                    Admin Password *
-                  </label>
-                  <div className="relative">
-                    <input
-                      id="password"
-                      type={showPassword ? 'text' : 'password'}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all pr-12"
-                      placeholder="Enter admin password"
-                    />
-                    <button
-                      type="button"
-                      className="absolute inset-y-0 right-0 pr-4 flex items-center"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                      ) : (
-                        <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                      )}
-                    </button>
-                  </div>
-                  {passwordError && (
-                    <p className="mt-1 text-sm text-red-600">{passwordError}</p>
-                  )}
-                  <p className="mt-1 text-xs text-gray-500">
-                    Demo password: admin123
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex justify-end space-x-3 pt-6">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowIndividualCheckoutModal(false);
-                    setSelectedStudent(null);
-                    setPassword('');
-                    setPasswordError('');
-                  }}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (await verifyPassword()) {
-                      setIsIndividualCheckoutProcessing(true);
-                      try {
-                        const response = await fetch(`${API_BASE}/attendance/${selectedStudent.id}/checkout`, {
-                          method: 'PUT',
-                          headers: {
-                            'Content-Type': 'application/json',
-                          },
-                          body: JSON.stringify({
-                            check_out_time: new Date().toISOString(),
-                            session: individualSession,
-                            notes: checkoutNotes
-                          }),
-                        });
-
-                        if (response.ok) {
-                          const updatedRecord = {
-                            ...selectedStudent,
-                            checkedOut: true,
-                            checkoutTime: new Date(),
-                            notes: checkoutNotes
-                          };
-                          setAttendanceRecords(prev => prev.map(r => r.id === updatedRecord.id ? updatedRecord : r));
-                          setSuccessMessage(`Successfully checked out ${updatedRecord.userName}!`);
-                          
-                          // Dispatch event to add student to session data
-                          window.dispatchEvent(new CustomEvent('studentAddedToSession', { 
-                            detail: { 
-                              action: 'individualCheckout', 
-                              studentId: updatedRecord.id, 
-                              studentName: updatedRecord.userName,
-                              registerNumber: updatedRecord.userId,
-                              session: individualSession,
-                              checkInTime: updatedRecord.timestamp.toISOString(),
-                              checkOutTime: new Date().toISOString(),
-                              notes: checkoutNotes,
-                              timestamp: new Date().toISOString()
-                            } 
-                          }));
-                          
-                          // Also dispatch the regular attendance update event
-                          window.dispatchEvent(new CustomEvent('attendanceUpdated', { 
-                            detail: { 
-                              action: 'checkout', 
-                              studentId: updatedRecord.id, 
-                              studentName: updatedRecord.userName,
-                              timestamp: new Date().toISOString()
-                            } 
-                          }));
-                          
-                          setShowIndividualCheckoutModal(false);
-                          setSelectedStudent(null);
-                          setPassword('');
-                          setPasswordError('');
-                          setCheckoutNotes('');
-                        } else {
-                          const errorData = await response.json().catch(() => ({}));
-                          console.error('Individual checkout error response:', errorData);
-                          throw new Error(errorData.error || 'Failed to checkout user');
-                        }
-                      } catch (error) {
-                        console.error('Error during individual checkout:', error);
-                        setPasswordError(`Failed to checkout: ${error instanceof Error ? error.message : 'Unknown error'}`);
-                      } finally {
-                        setIsIndividualCheckoutProcessing(false);
-                      }
-                    }
-                  }}
-                  disabled={!password.trim() || isIndividualCheckoutProcessing}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white rounded-xl font-medium transition-all disabled:cursor-not-allowed flex items-center space-x-2"
-                >
-                  {isIndividualCheckoutProcessing ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      <span>Processing...</span>
-                    </>
-                  ) : (
-                    <>
-                      <LogOut className="h-4 w-4" />
-                      <span>Checkout</span>
                     </>
                   )}
                 </button>

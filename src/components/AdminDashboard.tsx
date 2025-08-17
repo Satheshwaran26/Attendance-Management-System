@@ -136,9 +136,9 @@ const AdminDashboard: React.FC = () => {
                   src={logo} 
                   alt="Logo" 
                   className="h-28 w-28"
-                />
-              </div>
-              <div>
+              />
+            </div>
+            <div>
                 <h1 className="text-3xl font-bold text-gray-900">Welcome to Admin Dashboard</h1>
                 <p className="text-gray-600 text-lg">Manage your multi-department student attendance system</p>
               </div>
@@ -169,7 +169,7 @@ const AdminDashboard: React.FC = () => {
               </div>
             </div>
           </div>
-
+          
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
             <div className="flex items-center gap-4">
               <div className="h-12 w-12 bg-green-50 rounded-xl flex items-center justify-center border border-green-100">
@@ -214,40 +214,40 @@ const AdminDashboard: React.FC = () => {
 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <button
+              <button
             onClick={() => navigateToSection('checkin')}
             className="bg-white hover:bg-blue-50 border border-blue-200 hover:border-blue-300 rounded-2xl p-6 text-left transition-all hover:shadow-lg group"
-          >
+              >
             <div className="h-12 w-12 bg-blue-50 rounded-xl flex items-center justify-center border border-blue-100 group-hover:bg-blue-100 transition-colors mb-4">
               <Plus className="h-6 w-6 text-blue-600" />
-            </div>
+                </div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Check-in/Out</h3>
             <p className="text-sm text-gray-600">Mark student attendance and manage sessions</p>
-          </button>
-
-          <button
+              </button>
+              
+              <button
             onClick={() => navigateToSection('users')}
             className="bg-white hover:bg-green-50 border border-green-200 hover:border-green-300 rounded-2xl p-6 text-left transition-all hover:shadow-lg group"
-          >
+              >
             <div className="h-12 w-12 bg-green-50 rounded-xl flex items-center justify-center border border-green-100 group-hover:bg-green-100 transition-colors mb-4">
               <Users className="h-6 w-6 text-green-600" />
-            </div>
+                </div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">User Management</h3>
             <p className="text-sm text-gray-600">View, add, and manage all students</p>
-          </button>
-
-          <button
+              </button>
+              
+              <button
             onClick={() => navigateToSection('attendance')}
             className="bg-white hover:bg-purple-50 border border-purple-200 hover:border-purple-300 rounded-2xl p-6 text-left transition-all hover:shadow-lg group"
-          >
+              >
             <div className="h-12 w-12 bg-purple-50 rounded-xl flex items-center justify-center border border-purple-100 group-hover:bg-purple-100 transition-colors mb-4">
               <Crown className="h-6 w-6 text-purple-600" />
-            </div>
+                </div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Attendance Marking</h3>
             <p className="text-sm text-gray-600">Mark daily attendance for students</p>
-          </button>
-
-          <button
+              </button>
+              
+              <button
             onClick={() => navigateToSection('session-data')}
             className="bg-white hover:bg-orange-50 border border-orange-200 hover:border-orange-300 rounded-2xl p-6 text-left transition-all hover:shadow-lg group"
           >
@@ -257,8 +257,8 @@ const AdminDashboard: React.FC = () => {
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Session Data</h3>
             <p className="text-sm text-gray-600">View session statistics and reports</p>
           </button>
-        </div>
-
+              </div>
+              
         {/* Department Breakdown */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8">
           <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center gap-2">
@@ -273,7 +273,7 @@ const AdminDashboard: React.FC = () => {
                 <p className="text-xs text-gray-500">students</p>
               </div>
             ))}
-          </div>
+                </div>
           {Object.keys(stats.byDepartment).length > 6 && (
             <div className="text-center mt-4">
               <p className="text-sm text-gray-500">
