@@ -732,7 +732,7 @@ const CheckInOutPage: React.FC = () => {
                 </p>
               </div>
 
-                             <div className="space-y-4">
+                                           <div className="space-y-4">
                 {/* Session Selection */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -776,18 +776,18 @@ const CheckInOutPage: React.FC = () => {
                     Admin Password *
                   </label>
                   <div className="relative">
-                                          <input
-                        id="password"
-                        type={showPassword ? 'text' : 'password'}
-                        value={adminPassword}
-                        onChange={(e) => {
-                          setAdminPassword(e.target.value);
-                          setPasswordError('');
-                        }}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all pr-12"
-                        placeholder="Enter admin password"
-                        autoComplete="current-password"
-                      />
+                    <input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      value={adminPassword}
+                      onChange={(e) => {
+                        setAdminPassword(e.target.value);
+                        setPasswordError('');
+                      }}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all pr-12"
+                      placeholder="Enter admin password"
+                      autoComplete="current-password"
+                    />
                     <button
                       type="button"
                       className="absolute inset-y-0 right-0 pr-4 flex items-center"
