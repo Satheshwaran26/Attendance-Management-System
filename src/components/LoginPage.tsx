@@ -1,1025 +1,176 @@
 import React, { useState, useEffect } from 'react';
-import type { AttendanceRecord } from '../types';
-import { 
-  Search,
-  CheckCircle,
-  LogOut,
-  Users,
-  Clock,
-  Lock,
-  Eye,
-  EyeOff,
-  RefreshCw,
-  Download
-} from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Eye, EyeOff, Lock, User, Shield } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
-const CheckInOutPage: React.FC = () => {
-  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
-  const [filteredRecords, setFilteredRecords] = useState<AttendanceRecord[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'checked-in' | 'checked-out'>('all');
-  const [isLoading, setIsLoading] = useState(true);
-  const [showCheckoutAllModal, setShowCheckoutAllModal] = useState(false);
-  const [adminPassword, setAdminPassword] = useState('');
+const LoginPage: React.FC = () => {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [passwordError, setPasswordError] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [dbStatus, setDbStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
-  const [successMessage, setSuccessMessage] = useState('');
-  const [selectedSession, setSelectedSession] = useState<'session1' | 'session2'>('session1');
-  const [showIndividualCheckoutModal, setShowIndividualCheckoutModal] = useState(false);
-  const [selectedStudentId, setSelectedStudentId] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
+  const { login, isLoggedIn } = useAuth();
 
-  const API_BASE = 'http://localhost:5000/api';
-
-  const checkDatabaseStatus = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/health`);
-      if (response.ok) {
-        setDbStatus('connected');
-      } else {
-        setDbStatus('disconnected');
-      }
-    } catch (error) {
-      setDbStatus('disconnected');
+  // Redirect if already logged in
+  useEffect(() => {
+    if (isLoggedIn) {
+      navigate('/admin/dashboard');
     }
-  };
+  }, [isLoggedIn, navigate]);
 
-  useEffect(() => {
-    checkDatabaseStatus();
-    loadData();
-    
-    // Listen for attendance updates from other components
-    const handleAttendanceUpdate = (event: any) => {
-      console.log('Attendance update detected, refreshing data...', event.detail);
-      // Clear any existing data and reload fresh
-      setAttendanceRecords([]);
-      setFilteredRecords([]);
-      loadData();
-    };
-    
-    // Listen for page visibility changes to refresh data when tab becomes active
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        console.log('Page became visible, refreshing data...');
-        loadData();
-      }
-    };
-    
-    window.addEventListener('attendanceUpdated', handleAttendanceUpdate);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    // Set up periodic refresh every 30 seconds to keep data current
-    const intervalId = setInterval(() => {
-      console.log('Periodic refresh - checking for new data...');
-      loadData();
-    }, 30000); // 30 seconds
-    
-    return () => {
-      window.removeEventListener('attendanceUpdated', handleAttendanceUpdate);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      clearInterval(intervalId);
-    };
-  }, []);
-
-  useEffect(() => {
-    filterRecords();
-  }, [attendanceRecords, searchTerm, filterStatus]);
-
-  const loadData = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
     setIsLoading(true);
-    try {
-      console.log('Loading fresh attendance data...');
+
+    // Simple admin validation (in production, this should be server-side)
+    if (username === 'admin' && password === 'adminsih') {
+      // Use auth context to login
+      login(username);
       
-      // Add cache-busting parameter to ensure fresh data
-      const timestamp = new Date().getTime();
-      
-      // Load students and attendance records with fresh data
-      const [studentsResponse, attendanceResponse] = await Promise.all([
-        fetch(`${API_BASE}/students?t=${timestamp}`),
-        fetch(`${API_BASE}/attendance?t=${timestamp}`)
-      ]);
-
-      if (!studentsResponse.ok || !attendanceResponse.ok) {
-        throw new Error('Failed to fetch data');
-      }
-
-      const students = await studentsResponse.json();
-      const attendance = await attendanceResponse.json();
-
-      console.log('Fresh students loaded:', students.length);
-      console.log('Fresh attendance records loaded:', attendance.length);
-
-      // Transform attendance records to match our interface
-      const transformedRecords: AttendanceRecord[] = attendance.map((record: any) => {
-        const student = students.find((s: any) => s.id.toString() === record.student_id.toString());
-        if (!student) return null;
-
-        return {
-          id: record.id.toString(),
-          userId: student.register_number,
-          userName: student.name,
-          timestamp: new Date(record.check_in_time || record.date),
-          checkoutTime: record.check_out_time ? new Date(record.check_out_time) : undefined,
-          checkedOut: !!record.check_out_time,
-          qrCodeId: record.id.toString()
-        };
-      }).filter(Boolean);
-
-      console.log('Fresh transformed records:', transformedRecords.length);
-      console.log('Transformed records details:', transformedRecords);
-      
-      // Only show students who are currently present (not checked out)
-      const presentRecords = transformedRecords.filter(record => !record.checkedOut);
-      console.log('Present students:', presentRecords.length);
-      console.log('Present students details:', presentRecords);
-      
-      setAttendanceRecords(presentRecords);
-    } catch (error) {
-      console.error('Error loading data:', error);
-      setAttendanceRecords([]);
-    } finally {
+      // Redirect to admin dashboard
+      navigate('/admin/dashboard');
+    } else {
+      setError('Invalid username or password');
       setIsLoading(false);
     }
   };
 
-  const filterRecords = () => {
-    let filtered = attendanceRecords;
-
-    // Filter by search term
-    if (searchTerm.trim()) {
-      filtered = filtered.filter(record =>
-        record.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        record.userId.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    // Filter by status
-    switch (filterStatus) {
-      case 'checked-in':
-        filtered = filtered.filter(record => !record.checkedOut);
-        break;
-      case 'checked-out':
-        filtered = filtered.filter(record => record.checkedOut);
-        break;
-      default:
-        // Show only present students (not checked out) by default
-        filtered = filtered.filter(record => !record.checkedOut);
-        break;
-    }
-
-    setFilteredRecords(filtered);
-  };
-
-  const handleCheckout = async (recordId: string) => {
-    try {
-      // Clear any existing messages
-      setSuccessMessage('');
-      setPasswordError('');
-      
-      // Find the record to checkout
-      const record = attendanceRecords.find(r => r.id === recordId);
-      if (!record) return;
-
-      // Update the record in the backend
-      const response = await fetch(`${API_BASE}/attendance/${recordId}/checkout`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          check_out_time: new Date().toISOString(),
-          session: selectedSession
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Checkout error response:', errorData);
-        throw new Error(errorData.error || 'Failed to checkout user');
-      }
-
-      // Remove the student from the list immediately
-      const remainingRecords = attendanceRecords.filter(r => r.id !== recordId);
-      setAttendanceRecords(remainingRecords);
-      
-      // Show success message
-      setSuccessMessage(`Successfully checked out ${record.userName}!`);
-      
-      // Dispatch event to notify other components (like SessionDataPage)
-      window.dispatchEvent(new CustomEvent('attendanceUpdated', { 
-        detail: { 
-          action: 'checkout', 
-          studentId: record.id, 
-          studentName: record.userName,
-          timestamp: new Date().toISOString()
-        } 
-      }));
-      
-      // Clear success message after 3 seconds
-      setTimeout(() => {
-        setSuccessMessage('');
-      }, 3000);
-      
-      // Reload data to ensure consistency
-      await loadData();
-    } catch (error) {
-      console.error('Error checking out user:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      setPasswordError(`Failed to checkout: ${errorMessage}`);
-    }
-  };
-
-  const handleCheckoutAll = async () => {
-    if (adminPassword !== 'admin123') {
-      setPasswordError('Invalid password');
-      return;
-    }
-
-    if (!selectedSession) {
-      setPasswordError('Please select a session (Session 1 or Session 2)');
-      return;
-    }
-
-    setIsProcessing(true);
-    try {
-      // Clear any existing messages
-      setSuccessMessage('');
-      setPasswordError('');
-      
-      // Get all records that are currently checked in (not checked out)
-      const recordsToCheckout = attendanceRecords.filter(record => !record.checkedOut);
-      
-      if (recordsToCheckout.length === 0) {
-        setPasswordError('No students to checkout.');
-        return;
-      }
-
-      // First try batch checkout
-      try {
-        const batchResponse = await fetch(`${API_BASE}/attendance/batch-checkout`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            records: recordsToCheckout.map(record => ({
-              id: record.id,
-              student_id: record.userId,
-              check_out_time: new Date().toISOString(),
-              session: selectedSession
-            }))
-          }),
-        });
-
-        if (batchResponse.ok) {
-          // All records were checked out successfully
-          const successCount = recordsToCheckout.length;
-          const successfulCheckouts = recordsToCheckout.map(record => ({
-            id: record.id,
-            name: record.userName,
-            registerNumber: record.userId,
-            checkInTime: record.timestamp.toISOString(),
-            checkOutTime: new Date().toISOString(),
-            session: selectedSession
-          }));
-
-          setAttendanceRecords(prev => prev.filter(record => 
-            !recordsToCheckout.some(r => r.id === record.id)
-          ));
-          
-          setSuccessMessage(`Successfully checked out ${successCount} students for ${
-            selectedSession === 'session1' ? 'Session 1 (Morning)' : 'Session 2 (Afternoon)'
-          }`);
-
-          window.dispatchEvent(new CustomEvent('attendanceUpdated', {
-            detail: {
-              action: 'checkoutAll',
-              count: successCount,
-              session: selectedSession,
-              timestamp: new Date().toISOString(),
-              students: successfulCheckouts
-            }
-          }));
-
-          setShowCheckoutAllModal(false);
-          setAdminPassword('');
-          
-          await loadData();
-          return;
-        }
-      } catch (error) {
-        console.error('Batch checkout failed, falling back to individual checkouts:', error);
-      }
-
-      // If batch checkout fails, fall back to individual checkouts
-      let successCount = 0;
-      const successfulCheckouts: Array<{
-        id: string;
-        name: string;
-        registerNumber: string;
-        checkInTime: string;
-        checkOutTime: string;
-        session: string;
-      }> = [];
-      const failedCheckouts: AttendanceRecord[] = [];
-
-      for (const record of recordsToCheckout) {
-        try {
-          const response = await fetch(`${API_BASE}/attendance/${record.id}/checkout`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              student_id: record.userId,
-              check_out_time: new Date().toISOString(),
-              session: selectedSession
-            }),
-          });
-
-          if (response.ok) {
-            successCount++;
-            successfulCheckouts.push({
-              id: record.id,
-              name: record.userName,
-              registerNumber: record.userId,
-              checkInTime: record.timestamp.toISOString(),
-              checkOutTime: new Date().toISOString(),
-              session: selectedSession
-            });
-          } else {
-            failedCheckouts.push(record);
-            const errorData = await response.json().catch(() => ({}));
-            console.error(`Failed to checkout ${record.userName}:`, errorData);
-          }
-        } catch (error) {
-          failedCheckouts.push(record);
-          console.error(`Error checking out ${record.userName}:`, error);
-        }
-      }
-
-      // Update UI based on results
-      if (successCount > 0) {
-        // Remove checked-out students from the list immediately
-        setAttendanceRecords(prev => prev.filter(record => 
-          !successfulCheckouts.some(sc => sc.id === record.id)
-        ));
-        
-        // Show success message
-        const message = `Successfully checked out ${successCount} students for ${
-          selectedSession === 'session1' ? 'Session 1 (Morning)' : 'Session 2 (Afternoon)'
-        }${failedCheckouts.length > 0 ? ` (${failedCheckouts.length} failed)` : ''}`;
-        setSuccessMessage(message);
-
-        // Notify other components
-        window.dispatchEvent(new CustomEvent('attendanceUpdated', {
-          detail: {
-            action: 'checkoutAll',
-            count: successCount,
-            session: selectedSession,
-            timestamp: new Date().toISOString(),
-            students: successfulCheckouts
-          }
-        }));
-
-        // Close modal and clear form
-        setShowCheckoutAllModal(false);
-        setAdminPassword('');
-
-        // Clear success message after 5 seconds
-        setTimeout(() => {
-          setSuccessMessage('');
-        }, 5000);
-        
-       
-        await loadData();
-      } else {
-        setPasswordError(`Failed to checkout any students. ${failedCheckouts.length} attempts failed. Please try again.`);
-      }
-    } catch (error: any) {
-      console.error('Error during checkout:', error);
-      setPasswordError('Failed to checkout students. Please try again.');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-
-
-  const getStats = () => {
-    const total = attendanceRecords.filter(record => !record.checkedOut).length; // Only count present students
-    const checkedIn = attendanceRecords.filter(record => !record.checkedOut).length;
-    const checkedOut = attendanceRecords.filter(record => record.checkedOut).length;
-    
-    return { total, checkedIn, checkedOut };
-  };
-
-  // Helper function to format time correctly without timezone issues
-  const formatTimeCorrectly = (date: Date) => {
-    // Get the date components in local time
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    const seconds = String(date.getSeconds()).padStart(2, '0');
-    
-    return `${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`;
-  };
-
-  const downloadAttendanceData = () => {
-    try {
-      // Use filtered records if search/filter is applied, otherwise use all records
-      const dataToDownload = filteredRecords.length > 0 && (searchTerm.trim() || filterStatus !== 'all') 
-        ? filteredRecords 
-        : attendanceRecords;
-      
-      // Prepare data for download
-      const downloadData = dataToDownload.map(record => ({
-        'Student Name': record.userName,
-        'Register Number': record.userId,
-        'Check-in Time': formatTimeCorrectly(record.timestamp),
-        'Check-out Time': record.checkoutTime ? formatTimeCorrectly(record.checkoutTime) : 'Present',
-        'Status': record.checkedOut ? 'Checked Out' : 'Present'
-      }));
-
-      // Create CSV content with metadata
-      const currentDate = new Date().toLocaleDateString();
-      const currentTime = new Date().toLocaleTimeString();
-      const totalRecords = downloadData.length;
-      
-      const metadata = [
-        `Attendance Report`,
-        `Generated on: ${currentDate} at ${currentTime}`,
-        `Total Records: ${totalRecords}`,
-        `Filter Applied: ${searchTerm.trim() ? `Search: "${searchTerm}"` : 'None'}`,
-        `Status Filter: ${filterStatus !== 'all' ? filterStatus : 'All'}`,
-        ``
-      ].join('\n');
-      
-      const headers = Object.keys(downloadData[0] || {});
-      const csvContent = [
-        metadata,
-        headers.join(','),
-        ...downloadData.map(row => 
-          headers.map(header => {
-            const value = row[header as keyof typeof row];
-            // Escape commas and quotes in CSV
-            if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
-              return `"${value.replace(/"/g, '""')}"`;
-            }
-            return value;
-          }).join(',')
-        )
-      ].join('\n');
-
-      // Create and download file
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `attendance_data_${new Date().toISOString().split('T')[0]}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-
-      // Show success message
-      setSuccessMessage('Attendance data downloaded successfully!');
-      setTimeout(() => {
-        setSuccessMessage('');
-      }, 3000);
-    } catch (error) {
-      console.error('Error downloading data:', error);
-      setPasswordError('Failed to download attendance data. Please try again.');
-    }
-  };
-
-  const stats = getStats();
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-20 w-20 border-4 border-gray-200 border-t-blue-600 mx-auto mb-6"></div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Loading...</h2>
-          <p className="text-gray-600">Preparing check-in/out data...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
-      {/* Main Content Area - No Scroll */}
-      <div className="flex flex-1 min-h-0">
-        {/* Main Content - Scrollable Container */}
-        <div className="flex-1 overflow-hidden">
-          <div className="h-full overflow-y-auto">
-            <div className="p-8">
-              <div className="max-w-7xl mx-auto">
-                {/* Header with Database Status */}
-                <div className="mb-8">
-                  <h1 className="text-3xl font-bold text-gray-900 mb-2">Check-in/Check-out Management</h1>
-                  <p className="text-gray-600">Monitor present students and manage check-outs. Data refreshes automatically.</p>
-                  
-                  {/* Database Connection Status */}
-                  <div className="mt-4 flex items-center space-x-2">
-                    <div className={`w-3 h-3 rounded-full ${
-                      dbStatus === 'connected' ? 'bg-green-500' : 
-                      dbStatus === 'disconnected' ? 'bg-red-500' : 'bg-yellow-500'
-                    }`}></div>
-                    <span className={`text-sm font-medium ${
-                      dbStatus === 'connected' ? 'text-green-600' : 
-                      dbStatus === 'disconnected' ? 'text-red-600' : 'text-yellow-600'
-                    }`}>
-                      Database: {dbStatus === 'connected' ? 'Connected' : 
-                                 dbStatus === 'disconnected' ? 'Disconnected' : 'Checking...'}
-                    </span>
-                  </div>
-
-                  {/* Success Message */}
-                  {successMessage && (
-                    <div className="mt-4 p-4 bg-green-50 rounded-xl border border-green-200">
-                      <div className="flex items-center space-x-2">
-                        <CheckCircle className="h-5 w-5 text-green-600" />
-                        <span className="text-green-700 font-medium">{successMessage}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Error Message */}
-                  {passwordError && (
-                    <div className="mt-4 p-4 bg-red-50 rounded-xl border border-red-200">
-                      <div className="flex items-center space-x-2">
-                        <div className="h-5 w-5 bg-red-100 rounded-full flex items-center justify-center">
-                          <span className="text-red-600 font-bold text-xs">!</span>
-                        </div>
-                        <span className="text-red-700 font-medium">{passwordError}</span>
-                      </div>
-                    </div>
-                  )}
-
-                </div>
-
-                {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                  <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="h-12 w-12 bg-blue-50 rounded-xl flex items-center justify-center border border-blue-100">
-                        <Users className="h-6 w-6 text-blue-600" />
-                      </div>
-                    </div>
-                    <p className="text-gray-500 text-sm font-medium">Present Students</p>
-                    <p className="text-3xl font-bold text-gray-900">{stats.total}</p>
-                  </div>
-                  
-                  <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="h-12 w-12 bg-green-50 rounded-xl flex items-center justify-center border border-green-100">
-                        <CheckCircle className="h-6 w-6 text-green-600" />
-                      </div>
-                    </div>
-                    <p className="text-gray-500 text-sm font-medium">Present Today</p>
-                    <p className="text-3xl font-bold text-gray-900">{stats.checkedIn}</p>
-                  </div>
-                  
-                  <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="h-12 w-12 bg-purple-50 rounded-xl flex items-center justify-center border border-purple-100">
-                        <LogOut className="h-6 w-6 text-purple-600" />
-                      </div>
-                    </div>
-                    <p className="text-gray-500 text-sm font-medium">Checked Out</p>
-                    <p className="text-3xl font-bold text-gray-900">{stats.checkedOut}</p>
-                  </div>
-                </div>
-
-                {/* Controls */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8">
-                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
-                    <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
-                      {/* Search */}
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <input
-                          type="text"
-                          placeholder="Search by name or register number..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          className="pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                        />
-                      </div>
-
-                      {/* Filter */}
-                      <select
-                        value={filterStatus}
-                        onChange={(e) => setFilterStatus(e.target.value as 'all' | 'checked-in' | 'checked-out')}
-                        className="px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                      >
-                        <option value="all">Present Students</option>
-                        <option value="checked-in">Present Today</option>
-                        <option value="checked-out">Checked Out</option>
-                      </select>
-                    </div>
-
-                    <div className="flex space-x-3">
-                      {/* Download Button */}
-                      <button
-                        onClick={downloadAttendanceData}
-                        disabled={attendanceRecords.length === 0}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-xl font-medium transition-all flex items-center space-x-2 disabled:cursor-not-allowed"
-                        title={`Download ${filteredRecords.length > 0 && (searchTerm.trim() || filterStatus !== 'all') ? 'filtered' : 'all'} attendance data as CSV file`}
-                      >
-                        <Download className="h-4 w-4" />
-                        <span>Download CSV</span>
-                      </button>
-
-                      {/* Refresh Button */}
-                      <button
-                        onClick={() => {
-                          console.log('Manual refresh from controls triggered');
-                          loadData();
-                        }}
-                        className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl font-medium transition-all flex items-center space-x-2"
-                      >
-                        <RefreshCw className="h-4 w-4" />
-                        <span>Refresh Data</span>
-                      </button>
-
-                      {/* Checkout All Button */}
-                      <button
-                        onClick={() => setShowCheckoutAllModal(true)}
-                        disabled={stats.checkedIn === 0}
-                        className="bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white px-6 py-2 rounded-xl font-medium transition-all flex items-center space-x-2 disabled:cursor-not-allowed"
-                      >
-                        <LogOut className="h-4 w-4" />
-                        <span>Checkout All</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Records Table */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                            Student
-                          </th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                            Register Number
-                          </th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                            Check-in Time
-                          </th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                            Check-out Time
-                          </th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                            Status
-                          </th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {filteredRecords.map((record) => (
-                          <tr key={record.id} className="hover:bg-gray-50 transition-colors">
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center">
-                                <div className="h-10 w-10 bg-blue-50 rounded-xl flex items-center justify-center border border-blue-100">
-                                  <span className="text-blue-600 font-bold text-sm">{record.userName.charAt(0)}</span>
-                                </div>
-                                <div className="ml-3">
-                                  <div className="text-sm font-semibold text-gray-900">{record.userName}</div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono">
-                              {record.userId}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {formatTimeCorrectly(record.timestamp)}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {record.checkoutTime ? formatTimeCorrectly(record.checkoutTime) : '-'}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                record.checkedOut 
-                                  ? 'bg-green-100 text-green-800 border border-green-200' 
-                                  : 'bg-yellow-100 text-yellow-800 border border-yellow-200'
-                              }`}>
-                                {record.checkedOut ? (
-                                  <>
-                                    <CheckCircle className="h-3 w-3 mr-1" />
-                                    Checked Out
-                                  </>
-                                ) : (
-                                  <>
-                                    <Clock className="h-3 w-3 mr-1" />
-                                    Present
-                                  </>
-                                )}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                              {!record.checkedOut && (
-                                <button
-                                  onClick={() => {
-                                    setSelectedStudentId(record.id);
-                                    setShowIndividualCheckoutModal(true);
-                                  }}
-                                  className="text-red-600 hover:text-red-800 hover:bg-red-50 px-3 py-1 rounded-lg transition-all flex items-center space-x-1"
-                                >
-                                  <LogOut className="h-4 w-4" />
-                                  <span>Checkout</span>
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                        {filteredRecords.length === 0 && (
-                          <tr>
-                            <td colSpan={6} className="px-6 py-8 text-center text-sm text-gray-500">
-                              No records found matching your criteria
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 flex items-center justify-center px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+      {/* Background decorative elements */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-gray-200 to-gray-300 rounded-full opacity-20 blur-3xl"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-tr from-gray-200 to-gray-300 rounded-full opacity-20 blur-3xl"></div>
       </div>
 
-      {/* Individual Checkout Modal */}
-      {showIndividualCheckoutModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full">
-            <div className="p-6">
-              <div className="text-center mb-6">
-                <div className="mx-auto flex items-center justify-center h-16 w-16 bg-red-50 rounded-2xl mb-4 border border-red-100">
-                  <Lock className="h-8 w-8 text-red-600" />
-                </div>
-                <h2 className="text-xl font-bold text-gray-900 mb-2">
-                  Checkout Student
-                </h2>
-                <p className="text-gray-600">
-                  Please select a session and enter admin password to checkout this student.
-                </p>
-              </div>
+      <div className="relative max-w-md w-full space-y-8 z-10">
+        {/* Header */}
+        <div className="text-center">
+          <div className="mx-auto h-20 w-20 bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl flex items-center justify-center shadow-2xl mb-6">
+            <Shield className="h-10 w-10 text-white" />
+          </div>
+          <h2 className="text-4xl font-bold text-gray-900 font-['Manrope'] tracking-tight">
+            Welcome Back
+          </h2>
+          <p className="mt-3 text-lg text-gray-600 font-['Manrope']">
+            Sign in to your attendance system
+          </p>
+        </div>
 
-              <div className="space-y-4">
-                {/* Session Selection */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Select Session *
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedSession('session1')}
-                      className={`p-3 rounded-xl border-2 transition-all ${
-                        selectedSession === 'session1'
-                          ? 'border-blue-500 bg-blue-50 text-blue-700'
-                          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="text-center">
-                        <div className="text-lg font-semibold">Session 1</div>
-                        <div className="text-sm opacity-75">Morning</div>
-                      </div>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedSession('session2')}
-                      className={`p-3 rounded-xl border-2 transition-all ${
-                        selectedSession === 'session2'
-                          ? 'border-blue-500 bg-blue-50 text-blue-700'
-                          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="text-center">
-                        <div className="text-lg font-semibold">Session 2</div>
-                        <div className="text-sm opacity-75">Afternoon</div>
-                      </div>
-                    </button>
+        {/* Login Form */}
+        <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 p-8 backdrop-blur-sm">
+          <form className="space-y-6" onSubmit={handleSubmit}>
+            <div className="space-y-5">
+              {/* Username Field */}
+              <div>
+                <label htmlFor="username" className="block text-sm font-semibold text-gray-700 font-['Manrope'] mb-2">
+                  Username
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <User className="h-5 w-5 text-gray-400" />
                   </div>
-                </div>
-
-                {/* Password Input */}
-                <div>
-                  <label htmlFor="individual-password" className="block text-sm font-medium text-gray-700 mb-2">
-                    Admin Password *
-                  </label>
-                  <div className="relative">
-                    <input
-                      id="individual-password"
-                      type={showPassword ? 'text' : 'password'}
-                      value={adminPassword}
-                      onChange={(e) => {
-                        setAdminPassword(e.target.value);
-                        setPasswordError('');
-                      }}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all pr-12"
-                      placeholder="Enter admin password"
-                    />
-                    <button
-                      type="button"
-                      className="absolute inset-y-0 right-0 pr-4 flex items-center"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                      ) : (
-                        <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                      )}
-                    </button>
-                  </div>
-                  {passwordError && (
-                    <p className="mt-1 text-sm text-red-600">{passwordError}</p>
-                  )}
-                 
+                  <input
+                    id="username"
+                    name="username"
+                    type="text"
+                    required
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="appearance-none relative block w-full px-4 py-4 pl-12 border-2 border-gray-200 placeholder-gray-400 text-gray-900 rounded-xl focus:outline-none focus:ring-4 focus:ring-gray-100 focus:border-gray-800 transition-all duration-200 text-base font-['Manrope'] shadow-sm"
+                    placeholder="Enter your username"
+                  />
                 </div>
               </div>
 
-              <div className="flex justify-end space-x-3 pt-6">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowIndividualCheckoutModal(false);
-                    setAdminPassword('');
-                    setPasswordError('');
-                    setSelectedStudentId('');
-                  }}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (adminPassword === 'admin123') {
-                      handleCheckout(selectedStudentId);
-                      setShowIndividualCheckoutModal(false);
-                      setAdminPassword('');
-                      setSelectedStudentId('');
-                    } else {
-                      setPasswordError('Invalid password');
-                    }
-                  }}
-                  disabled={!adminPassword.trim() || !selectedSession || isProcessing}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white rounded-xl font-medium transition-all disabled:cursor-not-allowed flex items-center space-x-2"
-                >
-                  <LogOut className="h-4 w-4" />
-                  <span>Checkout</span>
-                </button>
+              {/* Password Field */}
+              <div>
+                <label htmlFor="password" className="block text-sm font-semibold text-gray-700 font-['Manrope'] mb-2">
+                  Password
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <Lock className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    id="password"
+                    name="password"
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="appearance-none relative block w-full px-4 py-4 pl-12 pr-12 border-2 border-gray-200 placeholder-gray-400 text-gray-900 rounded-xl focus:outline-none focus:ring-4 focus:ring-gray-100 focus:border-gray-800 transition-all duration-200 text-base font-['Manrope'] shadow-sm"
+                    placeholder="Enter your password"
+                  />
+                  <button
+                    type="button"
+                    className="absolute inset-y-0 right-0 pr-4 flex items-center hover:bg-gray-50 rounded-r-xl transition-colors duration-200"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                    ) : (
+                      <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* Checkout All Modal */}
-      {showCheckoutAllModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full">
-            <div className="p-6">
-              <div className="text-center mb-6">
-                <div className="mx-auto flex items-center justify-center h-16 w-16 bg-red-50 rounded-2xl mb-4 border border-red-100">
-                  <Lock className="h-8 w-8 text-red-600" />
-                </div>
-                <h2 className="text-xl font-bold text-gray-900 mb-2">
-                  Checkout All Users
-                </h2>
-                <p className="text-gray-600">
-                  This action will checkout all currently present users. Please enter the admin password to confirm.
-                </p>
-              </div>
-
-                             <div className="space-y-4">
-                {/* Session Selection */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Select Session *
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedSession('session1')}
-                      className={`p-3 rounded-xl border-2 transition-all ${
-                        selectedSession === 'session1'
-                          ? 'border-blue-500 bg-blue-50 text-blue-700'
-                          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="text-center">
-                        <div className="text-lg font-semibold">Session 1</div>
-                        <div className="text-sm opacity-75">Morning</div>
-                      </div>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedSession('session2')}
-                      className={`p-3 rounded-xl border-2 transition-all ${
-                        selectedSession === 'session2'
-                          ? 'border-blue-500 bg-blue-50 text-blue-700'
-                          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="text-center">
-                        <div className="text-lg font-semibold">Session 2</div>
-                        <div className="text-sm opacity-75">Afternoon</div>
-                      </div>
-                    </button>
+            {/* Error Message */}
+            {error && (
+              <div className="rounded-xl bg-red-50 border border-red-200 p-4">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className="h-5 w-5 bg-red-100 rounded-full flex items-center justify-center">
+                      <span className="text-red-600 font-bold text-xs">!</span>
+                    </div>
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-red-800 font-['Manrope']">
+                      {error}
+                    </h3>
                   </div>
                 </div>
+              </div>
+            )}
 
-                {/* Password Input */}
-                <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                    Admin Password *
-                  </label>
-                  <div className="relative">
-                    <input
-                      id="password"
-                      type={showPassword ? 'text' : 'password'}
-                      value={adminPassword}
-                      onChange={(e) => {
-                        setAdminPassword(e.target.value);
-                        setPasswordError('');
-                      }}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all pr-12"
-                      placeholder="Enter admin password"
-                    />
-                    <button
-                      type="button"
-                      className="absolute inset-y-0 right-0 pr-4 flex items-center"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                      ) : (
-                        <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600" />
-                      )}
-                    </button>
+            {/* Submit Button */}
+            <div>
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="group relative w-full flex justify-center py-4 px-6 border border-transparent text-base font-semibold rounded-xl text-white bg-gradient-to-r from-gray-800 to-gray-900 hover:from-gray-900 hover:to-gray-800 focus:outline-none focus:ring-4 focus:ring-gray-200 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-['Manrope'] shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+              >
+                {isLoading ? (
+                  <div className="flex items-center">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
+                    Signing in...
                   </div>
-                  {passwordError && (
-                    <p className="mt-1 text-sm text-red-600">{passwordError}</p>
-                  )}
-                  <p className="mt-1 text-xs text-gray-500">
-                    Demo password: admin123
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex justify-end space-x-3 pt-6">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowCheckoutAllModal(false);
-                    setAdminPassword('');
-                    setPasswordError('');
-                  }}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCheckoutAll}
-                  disabled={!adminPassword.trim() || !selectedSession || isProcessing}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white rounded-xl font-medium transition-all disabled:cursor-not-allowed flex items-center space-x-2"
-                >
-                  {isProcessing ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      <span>Processing...</span>
-                    </>
-                  ) : (
-                    <>
-                      <LogOut className="h-4 w-4" />
-                      <span>Checkout All</span>
-                    </>
-                  )}
-                </button>
-              </div>
+                ) : (
+                  <>
+                    <Lock className="h-5 w-5 mr-2" />
+                    Sign in
+                  </>
+                )}
+              </button>
             </div>
-          </div>
+
+
+          </form>
         </div>
-      )}
+
+        {/* Footer */}
+        <div className="text-center">
+          <p className="text-sm text-gray-500 font-['Manrope']">
+            Secure attendance management system
+          </p>
+        </div>
+      </div>
     </div>
   );
 };
 
-export default CheckInOutPage;
+export default LoginPage;

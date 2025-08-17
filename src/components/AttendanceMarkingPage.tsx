@@ -396,7 +396,6 @@ const AttendanceMarkingPage: React.FC = () => {
   };
 
 
-
   // Add debounce for Enter key to prevent double submissions
   const handleKeyPress = async (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !isLoading) {

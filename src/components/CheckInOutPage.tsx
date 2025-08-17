@@ -849,7 +849,9 @@ const CheckInOutPage: React.FC = () => {
                   {passwordError && (
                     <p className="mt-1 text-sm text-red-600">{passwordError}</p>
                   )}
-                 
+                  <p className="mt-1 text-xs text-gray-500">
+                    Demo password: admin123
+                  </p>
                 </div>
               </div>
 
@@ -977,7 +979,9 @@ const CheckInOutPage: React.FC = () => {
                   {passwordError && (
                     <p className="mt-1 text-sm text-red-600">{passwordError}</p>
                   )}
-                 
+                  <p className="mt-1 text-xs text-gray-500">
+                    Demo password: admin123
+                  </p>
                 </div>
               </div>
 
