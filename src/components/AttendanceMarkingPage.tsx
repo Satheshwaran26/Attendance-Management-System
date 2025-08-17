@@ -304,10 +304,7 @@ const AttendanceMarkingPage: React.FC = () => {
     }
   };
 
-  const handleMarkAttendance = async () => {
-    if (!selectedStudent) return;
-    await handleMarkAttendanceDirect(selectedStudent);
-  };
+
 
   const handleReRegistrationDirect = async (student: Student) => {
     setErrorMessage('');
@@ -398,10 +395,7 @@ const AttendanceMarkingPage: React.FC = () => {
     }
   };
 
-  const handleReRegistration = async (student: Student) => {
-    if (!student) return;
-    await handleReRegistrationDirect(student);
-  };
+
 
   // Add debounce for Enter key to prevent double submissions
   const handleKeyPress = async (e: React.KeyboardEvent) => {
