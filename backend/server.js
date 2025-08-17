@@ -61,8 +61,8 @@ app.get('/api/test-db', async (req, res) => {
     res.status(500).json({ 
       success: false, 
       error: error.message,
-      timestamp: new Date().toISOString()
-    });
+    timestamp: new Date().toISOString()
+  });
   }
 });
 
@@ -556,5 +556,5 @@ app.listen(PORT, () => {
 process.on('SIGINT', async () => {
   console.log('\n🛑 Shutting down server...');
   await client.end();
-  process.exit(0);
+    process.exit(0);
 });

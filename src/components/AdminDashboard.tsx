@@ -12,7 +12,7 @@ import {
   CheckCircle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-
+import logo from '../assets/generated-image.png';
 interface Stats {
   total: number;
   byDepartment: { [key: string]: number };
@@ -129,13 +129,13 @@ const AdminDashboard: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-4">
-              <div className="h-16 w-16 bg-blue-50 rounded-2xl flex items-center justify-center border border-blue-100">
+              <div className="h-24 w-24">
                 <img 
-                  src="/src/assets/generated-image%20(1).png" 
+                  src={logo} 
                   alt="Logo" 
-                  className="h-10 w-10"
+                  className="h-28 w-28"
                 />
               </div>
               <div>

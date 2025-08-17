@@ -9,7 +9,7 @@ import {
   FileText
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-
+import logo from '../assets/generated-image.png';
 interface AdminLayoutProps {
   children: React.ReactNode;
 }
@@ -36,12 +36,12 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
       {/* Top Header - Fixed */}
       <div className="bg-white shadow-sm border-b border-gray-200 flex-shrink-0">
-        <div className="max-w-full mx-auto px-6 py-4">
+        <div className="max-w-full mx-auto px-6 ">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <div className="h-12 w-12 rounded-xl flex items-center justify-center border border-blue-100 overflow-hidden">
+              <div className="h-28 w-28  ">
                 <img 
-                  src="/src/assets/generated-image%20(1).png" 
+                  src={logo}
                   alt="Bootcamp Portal Logo" 
                   className="h-full w-full object-cover"
                 />
