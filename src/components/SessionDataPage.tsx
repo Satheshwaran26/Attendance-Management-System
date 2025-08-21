@@ -10,12 +10,14 @@ import {
   CalendarDays,
   Users
 } from 'lucide-react';
+import { standardizeDepartmentName } from '../utils/departmentMapping';
 
 interface SessionRecord {
   id: string;
   studentId: string;
   studentName: string;
   registerNumber: string;
+  department: string;
   date: string;
   checkInTime: string;
   checkOutTime: string;
@@ -41,7 +43,6 @@ const SessionDataPage: React.FC = () => {
   const [selectedSession, setSelectedSession] = useState<'all' | 'session1' | 'session2'>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [dbStatus, setDbStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
-  const [attendanceData, setAttendanceData] = useState<any[]>([]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState<{date: string, session: 'session1' | 'session2' | 'both', count: number} | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -130,6 +131,7 @@ const SessionDataPage: React.FC = () => {
                 studentId: event.detail.studentId,
                 studentName,
                 registerNumber,
+                department: standardizeDepartmentName(event.detail.department || 'Unknown'),
                 date,
                 checkInTime: new Date(checkInTime).toLocaleString(),
                 checkOutTime: new Date(checkOutTime).toLocaleString(),
@@ -144,6 +146,7 @@ const SessionDataPage: React.FC = () => {
                 studentId: event.detail.studentId,
                 studentName,
                 registerNumber,
+                department: standardizeDepartmentName(event.detail.department || 'Unknown'),
                 date,
                 checkInTime: new Date(checkInTime).toLocaleString(),
                 checkOutTime: new Date(checkOutTime).toLocaleString(),
@@ -179,6 +182,7 @@ const SessionDataPage: React.FC = () => {
                 studentId: event.detail.studentId,
                 studentName,
                 registerNumber,
+                department: standardizeDepartmentName(event.detail.department || 'Unknown'),
                 date,
                 checkInTime: new Date(checkInTime).toLocaleString(),
                 checkOutTime: new Date(checkOutTime).toLocaleString(),
@@ -193,6 +197,7 @@ const SessionDataPage: React.FC = () => {
                 studentId: event.detail.studentId,
                 studentName,
                 registerNumber,
+                department: standardizeDepartmentName(event.detail.department || 'Unknown'),
                 date,
                 checkInTime: new Date(checkInTime).toLocaleString(),
                 checkOutTime: new Date(checkOutTime).toLocaleString(),
@@ -251,9 +256,6 @@ const SessionDataPage: React.FC = () => {
       console.log('Students loaded from database:', students.length);
       console.log('Attendance records loaded from database:', attendance.length);
       
-      // Store raw attendance data for debugging
-      setAttendanceData(attendance);
-
       // Transform and organize data by day and session
       const dayMap = new Map<string, DaySessionData>();
 
@@ -291,6 +293,7 @@ const SessionDataPage: React.FC = () => {
           studentId: student.id.toString(),
           studentName: student.name,
           registerNumber: student.register_number,
+          department: standardizeDepartmentName(student.department || 'Unknown'),
           date: date,
           checkInTime: checkInTime.toLocaleString(),
           checkOutTime: checkOutTime.toLocaleString(),
@@ -502,11 +505,13 @@ const SessionDataPage: React.FC = () => {
         ...day,
         session1: day.session1.filter(session =>
           session.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          session.registerNumber.toLowerCase().includes(searchTerm.toLowerCase())
+          session.registerNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          session.department.toLowerCase().includes(searchTerm.toLowerCase())
         ),
         session2: day.session2.filter(session =>
           session.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          session.registerNumber.toLowerCase().includes(searchTerm.toLowerCase())
+          session.registerNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          session.department.toLowerCase().includes(searchTerm.toLowerCase())
         )
       })).filter(day => day.session1.length > 0 || day.session2.length > 0);
     }
@@ -516,13 +521,13 @@ const SessionDataPage: React.FC = () => {
 
   const exportToCSV = () => {
     const csvContent = [
-      'Date,Session,Student Name,Register Number,Check-in Time,Check-out Time,Session Duration',
+      'Date,Session,Student Name,Register Number,Department,Check-in Time,Check-out Time,Session Duration',
       ...filteredData.flatMap(day => [
         ...day.session1.map(session =>
-          `${day.date},Session 1,"${session.studentName}",${session.registerNumber},"${session.checkInTime}","${session.checkOutTime}","${session.sessionDuration}"`
+          `${day.date},Session 1,"${session.studentName}",${session.registerNumber},"${session.department}","${session.checkInTime}","${session.checkOutTime}","${session.sessionDuration}"`
         ),
         ...day.session2.map(session =>
-          `${day.date},Session 2,"${session.studentName}",${session.registerNumber},"${session.checkInTime}","${session.checkOutTime}","${session.sessionDuration}"`
+          `${day.date},Session 2,"${session.studentName}",${session.registerNumber},"${session.department}","${session.checkInTime}","${session.checkOutTime}","${session.sessionDuration}"`
         )
       ])
     ].join('\n');
@@ -544,9 +549,9 @@ const SessionDataPage: React.FC = () => {
 
     const sessionName = session === 'session1' ? 'Session_1_Morning' : 'Session_2_Afternoon';
     const csvContent = [
-      'Date,Session,Student Name,Register Number,Check-in Time,Check-out Time,Session Duration',
+      'Date,Session,Student Name,Register Number,Department,Check-in Time,Check-out Time,Session Duration',
       ...records.map(sessionRecord =>
-        `${date},${session === 'session1' ? 'Session 1 (Morning)' : 'Session 2 (Afternoon)'},"${sessionRecord.studentName}",${sessionRecord.registerNumber},"${sessionRecord.checkInTime}","${sessionRecord.checkOutTime}","${sessionRecord.sessionDuration}"`
+        `${date},${session === 'session1' ? 'Session 1 (Morning)' : 'Session 2 (Afternoon)'},"${sessionRecord.studentName}",${sessionRecord.registerNumber},"${sessionRecord.department}","${sessionRecord.checkInTime}","${sessionRecord.checkOutTime}","${sessionRecord.sessionDuration}"`
       )
     ].join('\n');
 
@@ -584,7 +589,7 @@ const SessionDataPage: React.FC = () => {
 
   return (
     <div className="p-8">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-full mx-auto">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
@@ -679,7 +684,7 @@ const SessionDataPage: React.FC = () => {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search by name or register number..."
+                  placeholder="Search by name, register number, or department..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
@@ -737,27 +742,7 @@ const SessionDataPage: React.FC = () => {
             <p className="text-gray-600">
               {selectedDate ? `No session data found for ${selectedDate}` : 'No completed sessions available'}
             </p>
-            <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-              <p className="text-sm text-blue-800">
-                <strong>Note:</strong> This page shows completed sessions where students have been checked out from the database.
-                Check the Check-in/Out page for current day's active students.
-              </p>
-              <div className="mt-3 p-2 bg-green-50 rounded border border-green-200">
-                <p className="text-xs text-green-800">
-                  <strong>Data Protection:</strong> Existing session data is NEVER removed or overwritten when students re-register.
-                  Each session accumulates data independently. Re-registration creates new records.
-                </p>
-              </div>
-              <div className="mt-3 p-2 bg-yellow-50 rounded border border-yellow-200">
-                <p className="text-xs text-yellow-800">
-                  <strong>Database Info:</strong> Total completed sessions: {sessionData.length > 0 ?
-                    sessionData.reduce((sum, day) => sum + day.totalStudents, 0) : 0} |
-                  Raw attendance records: {attendanceData ? attendanceData.length : 0} |
-                  Database Status: {dbStatus} |
-                  Re-registration: Enabled
-                </p>
-              </div>
-            </div>
+            
           </div>
         ) : (
           <div className="space-y-6">
@@ -807,6 +792,9 @@ const SessionDataPage: React.FC = () => {
                           Register Number
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Department
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                           Check-in Time
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
@@ -822,7 +810,7 @@ const SessionDataPage: React.FC = () => {
                       {day.session1.length > 0 && (
                         <>
                           <tr className="bg-blue-50">
-                            <td colSpan={5} className="px-6 py-3">
+                            <td colSpan={6} className="px-6 py-3">
                               <div className="flex items-center space-x-2">
                                 <div className="h-6 w-6 bg-blue-100 rounded-lg flex items-center justify-center">
                                   <span className="text-blue-600 font-bold text-xs">1</span>
@@ -861,6 +849,11 @@ const SessionDataPage: React.FC = () => {
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono">
                                 {session.registerNumber}
                               </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                  {session.department}
+                                </span>
+                              </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 {session.checkInTime}
                               </td>
@@ -879,7 +872,7 @@ const SessionDataPage: React.FC = () => {
                       {day.session2.length > 0 && (
                         <>
                           <tr className="bg-green-50">
-                            <td colSpan={5} className="px-6 py-3">
+                            <td colSpan={6} className="px-6 py-3">
                               <div className="flex items-center space-x-2">
                                 <div className="h-6 w-6 bg-green-100 rounded-lg flex items-center justify-center">
                                   <span className="text-green-600 font-bold text-xs">2</span>
@@ -917,6 +910,11 @@ const SessionDataPage: React.FC = () => {
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono">
                                 {session.registerNumber}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                  {session.department}
+                                </span>
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 {session.checkInTime}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { standardizeDepartmentName } from '../utils/departmentMapping';
 import { 
   Search,
   SortAsc, 
@@ -34,11 +35,7 @@ interface Stats {
 interface NewStudent {
   name: string;
   register_number: string;
-  class_year: number;
   department: string;
-  aadhar_number: string;
-  phone_number: string;
-  email: string;
 }
 
 const API_BASE = process.env.NODE_ENV === 'production' 
@@ -63,11 +60,7 @@ const UserManagementPage: React.FC = () => {
   const [newStudent, setNewStudent] = useState<NewStudent>({
     name: '',
     register_number: '',
-    class_year: 1,
-    department: '',
-    aadhar_number: '',
-    phone_number: '',
-    email: ''
+    department: ''
   });
   const [isAddingStudent, setIsAddingStudent] = useState(false);
   const [addStudentError, setAddStudentError] = useState<string | null>(null);
@@ -120,8 +113,9 @@ const UserManagementPage: React.FC = () => {
       // Count by year
       byYear[student.class_year] = (byYear[student.class_year] || 0) + 1;
       
-      // Count by department
-      byDepartment[student.department] = (byDepartment[student.department] || 0) + 1;
+      // Count by department (standardized)
+      const standardizedDept = standardizeDepartmentName(student.department);
+      byDepartment[standardizedDept] = (byDepartment[standardizedDept] || 0) + 1;
     });
 
     setStats({
@@ -139,7 +133,7 @@ const UserManagementPage: React.FC = () => {
       filtered = filtered.filter(student =>
         student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         student.register_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.department.toLowerCase().includes(searchTerm.toLowerCase())
+        standardizeDepartmentName(student.department).toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
@@ -151,7 +145,7 @@ const UserManagementPage: React.FC = () => {
     // Apply department filter
     if (filterDepartment) {
       filtered = filtered.filter(student => 
-        student.department.toLowerCase().includes(filterDepartment.toLowerCase())
+        standardizeDepartmentName(student.department).toLowerCase().includes(filterDepartment.toLowerCase())
       );
     }
 
@@ -193,7 +187,7 @@ const UserManagementPage: React.FC = () => {
       ...filteredStudents.map(student => [
         student.name,
         student.register_number,
-        student.department
+        standardizeDepartmentName(student.department)
       ].join(','))
     ].join('\n');
     
@@ -212,7 +206,7 @@ const UserManagementPage: React.FC = () => {
   };
 
   const getDepartmentOptions = () => {
-    const departments = [...new Set(students.map(s => s.department))].sort();
+    const departments = [...new Set(students.map(s => standardizeDepartmentName(s.department)))].sort();
     return departments;
   };
 
@@ -255,11 +249,7 @@ const UserManagementPage: React.FC = () => {
       setNewStudent({
         name: '',
         register_number: '',
-        class_year: 1,
-        department: '',
-        aadhar_number: '',
-        phone_number: '',
-        email: ''
+        department: ''
       });
       
       // Refresh student list
@@ -284,11 +274,7 @@ const UserManagementPage: React.FC = () => {
     setNewStudent({
       name: '',
       register_number: '',
-      class_year: 1,
-      department: '',
-      aadhar_number: '',
-      phone_number: '',
-      email: ''
+      department: ''
     });
     setAddStudentError(null);
     setAddStudentSuccess(null);
@@ -307,7 +293,7 @@ const UserManagementPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto p-6">
+      <div className="max-w-full mx-auto p-6">
         {/* Header Section */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-6">
@@ -532,7 +518,7 @@ const UserManagementPage: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
-                        {student.department || 'Unknown'}
+                        {standardizeDepartmentName(student.department) || 'Unknown'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -570,7 +556,7 @@ const UserManagementPage: React.FC = () => {
       <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6">
           <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">Add New Student</h2>
+                <h2 className="text-2xl font-bold text-gray-900">Add Student</h2>
             <button
                   onClick={() => setShowAddModal(false)}
               className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -595,109 +581,70 @@ const UserManagementPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Form */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Required Fields */}
-                <div className="md:col-span-2">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Required Information</h3>
+                            {/* Form */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Student Information */}
+                <div className="md:col-span-3">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Student Information</h3>
                 </div>
                 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Full Name *
-                </label>
-                <input
-                  type="text"
-                    value={newStudent.name}
-                    onChange={(e) => setNewStudent({...newStudent, name: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="Enter full name"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Register Number *
-                </label>
-                <input
-                  type="text"
-                    value={newStudent.register_number}
-                    onChange={(e) => setNewStudent({...newStudent, register_number: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="Enter register number"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Class Year *
-                </label>
-                <select
-                    value={newStudent.class_year}
-                    onChange={(e) => setNewStudent({...newStudent, class_year: parseInt(e.target.value)})}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  >
-                    {[1, 2, 3, 4].map(year => (
-                      <option key={year} value={year}>Year {year}</option>
-                    ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Department *
-                </label>
-                <input
-                  type="text"
-                    value={newStudent.department}
-                    onChange={(e) => setNewStudent({...newStudent, department: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="e.g., BCA, BBA, BSc"
-                />
-              </div>
-
-                {/* Optional Fields */}
-                <div className="md:col-span-2">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Optional Information</h3>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Aadhar Number
-                </label>
-                <input
-                    type="text"
-                    value={newStudent.aadhar_number}
-                    onChange={(e) => setNewStudent({...newStudent, aadhar_number: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="Enter Aadhar number"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Phone Number
-                </label>
-                <input
-                    type="tel"
-                    value={newStudent.phone_number}
-                    onChange={(e) => setNewStudent({...newStudent, phone_number: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="Enter phone number"
-                />
-              </div>
-
-              <div className="md:col-span-2">
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email Address
+                    Full Name *
                   </label>
                   <input
-                    type="email"
-                    value={newStudent.email}
-                    onChange={(e) => setNewStudent({...newStudent, email: e.target.value})}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="Enter email address"
+                    type="text"
+                      value={newStudent.name}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        const capitalizedValue = value.charAt(0).toUpperCase() + value.slice(1);
+                        setNewStudent({...newStudent, name: capitalizedValue});
+                      }}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      placeholder="Enter full name"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Register Number *
+                  </label>
+                  <input
+                    type="text"
+                      value={newStudent.register_number}
+                      onChange={(e) => setNewStudent({...newStudent, register_number: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      placeholder="Enter register number"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Department *
+                  </label>
+                  <select
+                      value={newStudent.department}
+                      onChange={(e) => setNewStudent({...newStudent, department: e.target.value})}
+                      className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    >
+                      <option value="" disabled>Select Department</option>
+                      <option value="BSc Computer Science">BSc Computer Science</option>
+                      <option value="BSc CS with CS">BSc CS with CS</option>
+                      <option value="BSc CS (AI&DS)">BSc CS (AI&DS)</option>
+                      <option value="BSc Cyber Security">BSc Cyber Security</option>
+                      <option value="BCA">BCA</option>
+                      <option value="BSc IT">BSc IT</option>
+                      <option value="BSc ECS">BSc ECS</option>
+                      <option value="BSc CS DA">BSc CS DA</option>
+                      <option value="BSc Computer Technology">BSc Computer Technology</option>
+                      <option value="BSc CT">BSc CT</option>
+                      <option value="MSc ECS">MSc ECS</option>
+                      <option value="MSc IT">MSc IT</option>
+                      <option value="MSc Computer Science">MSc Computer Science</option>
+                      <option value="BCOM CS">BCOM CS</option>
+                      <option value="BSc CS with Cyber Security">BSc CS with Cyber Security</option>
+                      <option value="BSc DCFS">BSc DCFS</option>
+                    </select>
                 </div>
               </div>
 

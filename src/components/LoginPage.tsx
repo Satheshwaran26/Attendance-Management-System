@@ -57,6 +57,16 @@ const LoginPage: React.FC = () => {
           <p className="mt-3 text-lg text-gray-600 font-['Manrope']">
             Sign in to your attendance system
           </p>
+          
+          {/* Welcome message for fresh visitors */}
+          <div className="mt-4 p-3 bg-blue-50 rounded-xl border border-blue-200">
+            <p className="text-sm text-blue-700 font-medium">
+              🎯 Bootcamp Attendance Portal
+            </p>
+            <p className="text-xs text-blue-600 mt-1">
+              Student attendance management system
+            </p>
+          </div>
         </div>
 
         {/* Login Form */}
@@ -160,6 +170,23 @@ const LoginPage: React.FC = () => {
 
 
           </form>
+        </div>
+        
+        {/* Security Information */}
+        <div className="mt-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
+          <div className="flex items-start space-x-3">
+            <div className="h-6 w-6 bg-gray-200 rounded-lg flex items-center justify-center">
+              <Shield className="h-3 w-3 text-gray-600" />
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-medium text-gray-700 mb-1">Security Features</p>
+              <ul className="text-xs text-gray-600 space-y-1">
+                <li>• Session expires after 30 minutes of inactivity</li>
+                <li>• Fresh login required on each visit</li>
+                <li>• Secure authentication system</li>
+              </ul>
+            </div>
+          </div>
         </div>
 
         {/* Footer */}

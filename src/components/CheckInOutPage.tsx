@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { AttendanceRecord } from '../types';
+import { standardizeDepartmentName } from '../utils/departmentMapping';
 import { 
   Search,
   CheckCircle,
@@ -18,6 +19,7 @@ const CheckInOutPage: React.FC = () => {
   const [filteredRecords, setFilteredRecords] = useState<AttendanceRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'checked-in' | 'checked-out'>('all');
+  const [filterDepartment, setFilterDepartment] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [showCheckoutAllModal, setShowCheckoutAllModal] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
@@ -86,7 +88,7 @@ const CheckInOutPage: React.FC = () => {
 
   useEffect(() => {
     filterRecords();
-  }, [attendanceRecords, searchTerm, filterStatus]);
+  }, [attendanceRecords, searchTerm, filterStatus, filterDepartment]);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -121,6 +123,7 @@ const CheckInOutPage: React.FC = () => {
           id: record.id.toString(),
           userId: student.register_number,
           userName: student.name,
+          department: standardizeDepartmentName(student.department || 'N/A'),
           timestamp: new Date(record.check_in_time || record.date),
           checkoutTime: record.check_out_time ? new Date(record.check_out_time) : undefined,
           checkedOut: !!record.check_out_time,
@@ -152,7 +155,8 @@ const CheckInOutPage: React.FC = () => {
     if (searchTerm.trim()) {
       filtered = filtered.filter(record =>
         record.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        record.userId.toLowerCase().includes(searchTerm.toLowerCase())
+        record.userId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        record.department.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
@@ -168,6 +172,11 @@ const CheckInOutPage: React.FC = () => {
         // Show only present students (not checked out) by default
         filtered = filtered.filter(record => !record.checkedOut);
         break;
+    }
+
+    // Filter by department
+    if (filterDepartment !== 'all') {
+      filtered = filtered.filter(record => record.department === filterDepartment);
     }
 
     setFilteredRecords(filtered);
@@ -233,7 +242,7 @@ const CheckInOutPage: React.FC = () => {
   };
 
   const handleCheckoutAll = async () => {
-    if (adminPassword !== 'admin123') {
+    if (adminPassword !== 'admin@sih') {
       setPasswordError('Invalid password');
       return;
     }
@@ -441,6 +450,7 @@ const CheckInOutPage: React.FC = () => {
       const downloadData = dataToDownload.map(record => ({
         'Student Name': record.userName,
         'Register Number': record.userId,
+        'Department': record.department,
         'Check-in Time': formatTimeCorrectly(record.timestamp),
         'Check-out Time': record.checkoutTime ? formatTimeCorrectly(record.checkoutTime) : 'Present',
         'Status': record.checkedOut ? 'Checked Out' : 'Present'
@@ -457,6 +467,7 @@ const CheckInOutPage: React.FC = () => {
         `Total Records: ${totalRecords}`,
         `Filter Applied: ${searchTerm.trim() ? `Search: "${searchTerm}"` : 'None'}`,
         `Status Filter: ${filterStatus !== 'all' ? filterStatus : 'All'}`,
+        `Department Filter: ${filterDepartment !== 'all' ? filterDepartment : 'All'}`,
         ``
       ].join('\n');
       
@@ -521,7 +532,7 @@ const CheckInOutPage: React.FC = () => {
         <div className="flex-1 overflow-hidden">
           <div className="h-full overflow-y-auto">
             <div className="p-8">
-              <div className="max-w-7xl mx-auto">
+              <div className="max-w-full mx-auto">
                 {/* Header with Database Status */}
                 <div className="mb-8">
                   <h1 className="text-3xl font-bold text-gray-900 mb-2">Check-in/Check-out Management</h1>
@@ -608,14 +619,14 @@ const CheckInOutPage: React.FC = () => {
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                         <input
                           type="text"
-                          placeholder="Search by name or register number..."
+                          placeholder="Search by name, register number, or department..."
                           value={searchTerm}
                           onChange={(e) => setSearchTerm(e.target.value)}
                           className="pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                         />
                       </div>
 
-                      {/* Filter */}
+                      {/* Status Filter */}
                       <select
                         value={filterStatus}
                         onChange={(e) => setFilterStatus(e.target.value as 'all' | 'checked-in' | 'checked-out')}
@@ -625,6 +636,18 @@ const CheckInOutPage: React.FC = () => {
                         <option value="checked-in">Present Today</option>
                         <option value="checked-out">Checked Out</option>
                       </select>
+
+                      {/* Department Filter */}
+                      <select
+                        value={filterDepartment}
+                        onChange={(e) => setFilterDepartment(e.target.value)}
+                        className="px-4 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      >
+                        <option value="all">All Departments</option>
+                        {Array.from(new Set(attendanceRecords.map(record => record.department))).map(dept => (
+                          <option key={dept} value={dept}>{dept}</option>
+                        ))}
+                      </select>
                     </div>
 
                     <div className="flex space-x-3">
@@ -633,7 +656,7 @@ const CheckInOutPage: React.FC = () => {
                         onClick={downloadAttendanceData}
                         disabled={attendanceRecords.length === 0}
                         className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-xl font-medium transition-all flex items-center space-x-2 disabled:cursor-not-allowed"
-                        title={`Download ${filteredRecords.length > 0 && (searchTerm.trim() || filterStatus !== 'all') ? 'filtered' : 'all'} attendance data as CSV file`}
+                        title={`Download ${filteredRecords.length > 0 && (searchTerm.trim() || filterStatus !== 'all' || filterDepartment !== 'all') ? 'filtered' : 'all'} attendance data as CSV file`}
                       >
                         <Download className="h-4 w-4" />
                         <span>Download CSV</span>
@@ -677,6 +700,9 @@ const CheckInOutPage: React.FC = () => {
                             Register Number
                           </th>
                           <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                            Department
+                          </th>
+                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                             Check-in Time
                           </th>
                           <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
@@ -705,6 +731,9 @@ const CheckInOutPage: React.FC = () => {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono">
                               {record.userId}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {record.department}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                               {formatTimeCorrectly(record.timestamp)}
@@ -749,7 +778,7 @@ const CheckInOutPage: React.FC = () => {
                         ))}
                         {filteredRecords.length === 0 && (
                           <tr>
-                            <td colSpan={6} className="px-6 py-8 text-center text-sm text-gray-500">
+                            <td colSpan={7} className="px-6 py-8 text-center text-sm text-gray-500">
                               No records found matching your criteria
                             </td>
                           </tr>
@@ -852,7 +881,7 @@ const CheckInOutPage: React.FC = () => {
                     <p className="mt-1 text-sm text-red-600">{passwordError}</p>
                   )}
                   <p className="mt-1 text-xs text-gray-500">
-                    Demo password: admin123
+              
                   </p>
                 </div>
               </div>
@@ -873,7 +902,7 @@ const CheckInOutPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    if (adminPassword === 'admin123') {
+                    if (adminPassword === 'admin@sih') {
                       handleCheckout(selectedStudentId);
                       setShowIndividualCheckoutModal(false);
                       setAdminPassword('');
@@ -982,7 +1011,7 @@ const CheckInOutPage: React.FC = () => {
                     <p className="mt-1 text-sm text-red-600">{passwordError}</p>
                   )}
                   <p className="mt-1 text-xs text-gray-500">
-                    Demo password: admin123
+                
                   </p>
                 </div>
               </div>

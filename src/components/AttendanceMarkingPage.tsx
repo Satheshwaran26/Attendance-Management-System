@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { standardizeDepartmentName } from '../utils/departmentMapping';
 import { 
   Search,
   CheckCircle,
@@ -19,6 +20,7 @@ const AttendanceMarkingPage: React.FC = () => {
 
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [recentlyProcessed, setRecentlyProcessed] = useState<Set<string>>(new Set());
 
   const API_BASE = process.env.NODE_ENV === 'production' 
     ? 'https://attendance-management-system-z2cc.onrender.com/api' 
@@ -60,11 +62,28 @@ const AttendanceMarkingPage: React.FC = () => {
     if (searchInputRef.current) {
       searchInputRef.current.focus();
     }
+    
+    // Clear any existing state to prevent duplicate issues
+    setSelectedStudent(null);
+    setAttendanceStatus(null);
+    setErrorMessage('');
+    setSuccessMessage('');
+    setSearchTerm('');
+    
+    // Clear recently processed set every 5 minutes to allow legitimate re-registrations
+    const cleanupInterval = setInterval(() => {
+      setRecentlyProcessed(new Set());
+      console.log('Cleared recently processed register numbers');
+    }, 5 * 60 * 1000); // 5 minutes
+    
+    return () => clearInterval(cleanupInterval);
   }, []);
 
   const checkExistingAttendance = async (studentId: string, date: string) => {
     try {
       console.log('Checking existing attendance for student:', studentId, 'on date:', date);
+      
+      // First, let's check if there's already an attendance record for this student on this date
       const response = await fetch(`${API_BASE}/attendance/check?student_id=${studentId}&date=${date}`);
       console.log('Check attendance response status:', response.status);
       
@@ -73,28 +92,44 @@ const AttendanceMarkingPage: React.FC = () => {
         console.log('Check attendance response data:', data);
         
         if (data.exists) {
-          if (data.isCheckedOut) {
-            // Student was checked out, can be marked present again
-            return { exists: true, canMarkPresent: true, isCheckedOut: true };
-          } else {
+          // Check if the student is already present (has check-in time but no check-out time)
+          if (data.attendance && data.attendance.check_in_time && !data.attendance.check_out_time) {
             // Student is already present and not checked out
-            return { exists: true, canMarkPresent: false, isCheckedOut: false };
+            console.log('Student is already present and not checked out');
+            return { exists: true, canMarkPresent: false, isCheckedOut: false, attendance: data.attendance };
+          } else if (data.attendance && data.attendance.check_out_time) {
+            // Student was checked out, can be marked present again (re-registration)
+            console.log('Student was checked out, can be marked present again');
+            return { exists: true, canMarkPresent: true, isCheckedOut: true, attendance: data.attendance };
+          } else {
+            // Student has some attendance record but unclear status
+            console.log('Student has unclear attendance status');
+            return { exists: true, canMarkPresent: false, isCheckedOut: false, attendance: data.attendance };
           }
         } else {
           // No attendance record exists
-          return { exists: false, canMarkPresent: true, isCheckedOut: false };
+          console.log('No attendance record exists');
+          return { exists: false, canMarkPresent: true, isCheckedOut: false, attendance: null };
         }
       }
+      
       console.log('Check attendance response not ok');
-      return { exists: false, canMarkPresent: true, isCheckedOut: false };
+      return { exists: false, canMarkPresent: true, isCheckedOut: false, attendance: null };
     } catch (error) {
       console.error('Error checking existing attendance:', error);
-      return { exists: false, canMarkPresent: true, isCheckedOut: false };
+      return { exists: false, canMarkPresent: true, isCheckedOut: false, attendance: null };
     }
   };
 
   const handleSearch = async () => {
     if (!searchTerm.trim() || isLoading) {
+      return;
+    }
+
+    // Check if this register number was recently processed
+    const registerKey = `${searchTerm.trim()}-${selectedDate}`;
+    if (recentlyProcessed.has(registerKey)) {
+      setErrorMessage('This register number was recently processed. Please wait a moment before trying again.');
       return;
     }
 
@@ -142,7 +177,7 @@ const AttendanceMarkingPage: React.FC = () => {
             ) : '',
           phoneNumber: student.phone_number,
           email: student.email || '',
-          department: student.department || 'BCA',
+          department: standardizeDepartmentName(student.department || 'BCA'),
           isActive: student.is_active,
           createdAt: new Date(student.created_at)
         };
@@ -158,6 +193,9 @@ const AttendanceMarkingPage: React.FC = () => {
           setSelectedStudent(transformedStudent);
           setAttendanceStatus('present');
           setSuccessMessage('Already Present');
+          
+          // Add to recently processed to prevent duplicate submissions
+          setRecentlyProcessed(prev => new Set([...prev, registerKey]));
           
           // Dispatch event to notify CheckIn/Out page that student is already present
           const event = new CustomEvent('studentAlreadyPresent', {
@@ -214,6 +252,27 @@ const AttendanceMarkingPage: React.FC = () => {
     try {
       console.log('Marking attendance for student:', student.id, 'on date:', selectedDate);
       
+      // Double-check if attendance already exists before marking
+      const doubleCheck = await checkExistingAttendance(student.id, selectedDate);
+      if (doubleCheck.exists && !doubleCheck.canMarkPresent) {
+        console.log('Double-check: Student is already present, cannot mark again');
+        setSelectedStudent(student);
+        setAttendanceStatus('present');
+        setSuccessMessage('Already Present - Cannot mark attendance twice');
+        
+        // Clear the form after showing already present message
+        setTimeout(() => {
+          setSearchTerm('');
+          setSelectedStudent(null);
+          setAttendanceStatus(null);
+          setSuccessMessage('');
+          if (searchInputRef.current) {
+            searchInputRef.current.focus();
+          }
+        }, 2000);
+        return;
+      }
+      
       const attendanceData = {
         student_id: student.id,
         date: selectedDate,
@@ -239,10 +298,26 @@ const AttendanceMarkingPage: React.FC = () => {
         console.error('Attendance error response:', errorData);
         
         // Check if it's a duplicate error
-        if (errorData.error && errorData.error.includes('already present')) {
+        if (errorData.error && (
+          errorData.error.includes('already present') || 
+          errorData.error.includes('duplicate') ||
+          errorData.error.includes('already exists')
+        )) {
+          console.log('Duplicate attendance detected, updating UI');
           setSelectedStudent(student);
           setAttendanceStatus('present');
-          setSuccessMessage('Already Present');
+          setSuccessMessage('Already Present - Attendance was already recorded');
+          
+          // Clear the form after showing already present message
+          setTimeout(() => {
+            setSearchTerm('');
+            setSelectedStudent(null);
+            setAttendanceStatus(null);
+            setSuccessMessage('');
+            if (searchInputRef.current) {
+              searchInputRef.current.focus();
+            }
+          }, 2000);
           return;
         }
         
@@ -253,6 +328,10 @@ const AttendanceMarkingPage: React.FC = () => {
 
       const result = await response.json();
       console.log('Attendance marked successfully:', result);
+
+      // Add to recently processed to prevent duplicate submissions
+      const registerKey = `${student.registerNumber}-${selectedDate}`;
+      setRecentlyProcessed(prev => new Set([...prev, registerKey]));
 
       setSelectedStudent(student);
       setAttendanceStatus('present');
@@ -311,6 +390,27 @@ const AttendanceMarkingPage: React.FC = () => {
     try {
       console.log('Handling re-registration for student:', student.id, 'on date:', selectedDate);
       
+      // Double-check if attendance already exists before re-registering
+      const doubleCheck = await checkExistingAttendance(student.id, selectedDate);
+      if (doubleCheck.exists && !doubleCheck.canMarkPresent) {
+        console.log('Double-check: Student is already present, cannot re-register');
+        setSelectedStudent(student);
+        setAttendanceStatus('present');
+        setSuccessMessage('Already Present - Cannot re-register while present');
+        
+        // Clear the form after showing already present message
+        setTimeout(() => {
+          setSearchTerm('');
+          setSelectedStudent(null);
+          setAttendanceStatus(null);
+          setSuccessMessage('');
+          if (searchInputRef.current) {
+            searchInputRef.current.focus();
+          }
+        }, 2000);
+        return;
+      }
+      
       // Create a new attendance record for re-registration
       const reRegistrationData = {
         student_id: student.id,
@@ -336,6 +436,30 @@ const AttendanceMarkingPage: React.FC = () => {
         const errorData = await response.json().catch(() => ({}));
         console.error('Re-registration error response:', errorData);
         
+        // Check if it's a duplicate error
+        if (errorData.error && (
+          errorData.error.includes('already present') || 
+          errorData.error.includes('duplicate') ||
+          errorData.error.includes('already exists')
+        )) {
+          console.log('Duplicate re-registration detected, updating UI');
+          setSelectedStudent(student);
+          setAttendanceStatus('present');
+          setSuccessMessage('Already Present - Re-registration was already recorded');
+          
+          // Clear the form after showing already present message
+          setTimeout(() => {
+            setSearchTerm('');
+            setSelectedStudent(null);
+            setAttendanceStatus(null);
+            setSuccessMessage('');
+            if (searchInputRef.current) {
+              searchInputRef.current.focus();
+            }
+          }, 2000);
+          return;
+        }
+        
         const errorMsg = errorData.error || response.statusText || 'Unknown error';
         throw new Error(errorMsg);
       }
@@ -343,9 +467,13 @@ const AttendanceMarkingPage: React.FC = () => {
       const result = await response.json();
       console.log('Re-registration marked successfully:', result);
 
+      // Add to recently processed to prevent duplicate submissions
+      const registerKey = `${student.registerNumber}-${selectedDate}`;
+      setRecentlyProcessed(prev => new Set([...prev, registerKey]));
+
       setSelectedStudent(student);
       setAttendanceStatus('present');
-      setSuccessMessage(`${student.name} - Present`);
+      setSuccessMessage(`${student.name} - Present (Re-registered)`);
       setShowSuccessFlash(true);
       
       // Dispatch custom event to notify other components
@@ -447,7 +575,7 @@ const AttendanceMarkingPage: React.FC = () => {
               <input
                 ref={searchInputRef}
                 type="text"
-                placeholder="Enter register number (e.g., 23127046) and press Enter"
+                placeholder="Enter register number (e.g., 231270XX) and press Enter"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyPress={handleKeyPress}
@@ -505,7 +633,7 @@ const AttendanceMarkingPage: React.FC = () => {
                 <div>
                   <h3 className="text-xl font-bold text-gray-900">{selectedStudent.name}</h3>
                   <p className="text-gray-600">Register Number: {selectedStudent.registerNumber}</p>
-                  <p className="text-gray-600">{selectedStudent.classYear} • {selectedStudent.department}</p>
+                  <p className="text-gray-600">{selectedStudent.classYear} • {selectedStudent.department ? standardizeDepartmentName(selectedStudent.department) : 'Unknown'}</p>
                   <p className="text-gray-600">Phone: {selectedStudent.phoneNumber}</p>
                   {selectedStudent.email && <p className="text-gray-600">Email: {selectedStudent.email}</p>}
                 </div>

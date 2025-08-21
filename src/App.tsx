@@ -71,10 +71,10 @@ const App: React.FC = () => {
             } 
           />
 
-          {/* Default Route - Redirect to login if not authenticated */}
+          {/* Default Route - Always show login page first */}
           <Route path="/" element={<LoginPage />} />
 
-          {/* Catch all route */}
+          {/* Catch all route - Redirect unknown URLs to login */}
           <Route path="*" element={<LoginPage />} />
         </Routes>
       </Router>

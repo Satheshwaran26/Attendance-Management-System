@@ -2,6 +2,7 @@ export interface AttendanceRecord {
   id: string;
   userId: string;
   userName: string;
+  department: string;
   timestamp: Date;
   qrCodeId: string;
   checkedOut?: boolean;

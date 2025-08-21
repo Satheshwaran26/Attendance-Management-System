@@ -4,12 +4,13 @@ import {
   Users,
   Calendar,
   LogOut,
-  Settings,
+  
   LayoutDashboard,
   FileText
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import logo from '../assets/generated-image.png';
+import sihLogo from '../assets/sih.png';
+import srcasLogo from '../assets/srcas.png';
 interface AdminLayoutProps {
   children: React.ReactNode;
 }
@@ -39,23 +40,30 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
         <div className="max-w-full mx-auto px-6 ">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <div className="h-28 w-28  ">
-                <img 
-                  src={logo}
-                  alt="Bootcamp Portal Logo" 
-                  className="h-full w-full object-cover"
-                />
-              </div>
+              <div className="flex items-center space-x-3">
+               <div className="h- w-72">
+                  <img 
+                    src={srcasLogo}
+                    alt="SRCAS Logo" 
+                    className="h-full w-full object-contain"
+                  />
+                </div>
+                <div className="h-28 w-80">
+                  <img 
+                    src={sihLogo}
+                    alt="SIH Logo" 
+                    className="h-full w-full object-contain"
+                  />
+                </div>
+              
+                </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Bootcamp Portal</h1>
+                <h1 className="text-2xl font-bold text-gray-900"> Smart  India Hackathon Bootcamp Attendance Portal</h1>
                 <p className="text-gray-600">Student Attendance Management</p>
               </div>
             </div>
             <div className="flex items-center space-x-3">
-              <button className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-xl font-medium transition-all flex items-center space-x-2">
-                <Settings className="h-4 w-4" />
-                <span>Settings</span>
-              </button>
+              
             </div>
           </div>
         </div>
