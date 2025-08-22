@@ -35,6 +35,7 @@ interface Stats {
 interface NewStudent {
   name: string;
   register_number: string;
+  class_year: number;
   department: string;
 }
 
@@ -60,8 +61,13 @@ const UserManagementPage: React.FC = () => {
   const [newStudent, setNewStudent] = useState<NewStudent>({
     name: '',
     register_number: '',
+    class_year: 1,
     department: ''
   });
+
+  // Debug initial state
+  console.log('Initial newStudent state:', newStudent);
+  console.log('Initial class_year type:', typeof newStudent.class_year, 'value:', newStudent.class_year);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
   const [addStudentError, setAddStudentError] = useState<string | null>(null);
   const [addStudentSuccess, setAddStudentSuccess] = useState<string | null>(null);
@@ -76,6 +82,11 @@ const UserManagementPage: React.FC = () => {
   useEffect(() => {
     filterAndSortStudents();
   }, [students, searchTerm, filterYear, filterDepartment, sortField, sortDirection]);
+
+  // Debug form state changes
+  useEffect(() => {
+    console.log('Form state changed:', newStudent);
+  }, [newStudent]);
 
   const checkDatabaseConnection = async () => {
     try {
@@ -217,8 +228,17 @@ const UserManagementPage: React.FC = () => {
 
   // Add Student Functions
   const handleAddStudent = async () => {
-    if (!newStudent.name || !newStudent.register_number || !newStudent.department) {
-      setAddStudentError('Name, register number, and department are required');
+    console.log('Submitting student data:', newStudent);
+    
+    if (!newStudent.name || !newStudent.register_number || !newStudent.class_year || !newStudent.department) {
+      const missingFields = [];
+      if (!newStudent.name) missingFields.push('name');
+      if (!newStudent.register_number) missingFields.push('register_number');
+      if (!newStudent.class_year) missingFields.push('class_year');
+      if (!newStudent.department) missingFields.push('department');
+      
+      console.log('Missing fields:', missingFields);
+      setAddStudentError(`Name, register number, class year, and department are required. Missing: ${missingFields.join(', ')}`);
       return;
     }
 
@@ -227,6 +247,9 @@ const UserManagementPage: React.FC = () => {
     setAddStudentSuccess(null);
 
     try {
+      console.log('Sending request to:', `${API_BASE}/students`);
+      console.log('Request payload:', JSON.stringify(newStudent));
+      
       const response = await fetch(`${API_BASE}/students`, {
         method: 'POST',
         headers: {
@@ -236,8 +259,10 @@ const UserManagementPage: React.FC = () => {
       });
 
       if (!response.ok) {
+        console.log('Response not ok:', response.status, response.statusText);
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to add student');
+        console.log('Error data:', errorData);
+        throw new Error(errorData.error || `Failed to add student: ${response.status} ${response.statusText}`);
       }
 
       const addedStudent = await response.json();
@@ -249,6 +274,7 @@ const UserManagementPage: React.FC = () => {
       setNewStudent({
         name: '',
         register_number: '',
+        class_year: 1,
         department: ''
       });
       
@@ -271,11 +297,15 @@ const UserManagementPage: React.FC = () => {
   };
 
   const resetAddStudentForm = () => {
-    setNewStudent({
+    console.log('Resetting form to initial state');
+    const initialState = {
       name: '',
       register_number: '',
+      class_year: 1,
       department: ''
-    });
+    };
+    console.log('Initial state:', initialState);
+    setNewStudent(initialState);
     setAddStudentError(null);
     setAddStudentSuccess(null);
   };
@@ -414,6 +444,7 @@ const UserManagementPage: React.FC = () => {
               <div className="flex gap-3">
               <button
                   onClick={() => {
+                    console.log('Opening add student modal');
                     resetAddStudentForm();
                     setShowAddModal(true);
                   }}
@@ -565,6 +596,13 @@ const UserManagementPage: React.FC = () => {
             </button>
           </div>
 
+          {/* Debug Info */}
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+            <p className="text-sm text-blue-800 font-medium">Debug Info:</p>
+            <p className="text-xs text-blue-700">Current form state: {JSON.stringify(newStudent)}</p>
+            <p className="text-xs text-blue-700">API Base: {API_BASE}</p>
+          </div>
+
               {/* Success/Error Messages */}
               {addStudentSuccess && (
                 <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl">
@@ -582,9 +620,9 @@ const UserManagementPage: React.FC = () => {
               )}
 
                             {/* Form */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Student Information */}
-                <div className="md:col-span-3">
+                <div className="md:col-span-2">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Student Information</h3>
                 </div>
                 
@@ -596,12 +634,24 @@ const UserManagementPage: React.FC = () => {
                     type="text"
                       value={newStudent.name}
                       onChange={(e) => {
-                        const value = e.target.value;
+                        const value = e.target.value.trim();
                         const capitalizedValue = value.charAt(0).toUpperCase() + value.slice(1);
-                        setNewStudent({...newStudent, name: capitalizedValue});
+                        const updatedStudent = {...newStudent, name: capitalizedValue};
+                        console.log('Updated student name:', updatedStudent);
+                        setNewStudent(updatedStudent);
+                      }}
+                      onBlur={(e) => {
+                        const value = e.target.value.trim();
+                        if (value !== newStudent.name) {
+                          const capitalizedValue = value.charAt(0).toUpperCase() + value.slice(1);
+                          const updatedStudent = {...newStudent, name: capitalizedValue};
+                          console.log('Blur updated student name:', updatedStudent);
+                          setNewStudent(updatedStudent);
+                        }
                       }}
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                       placeholder="Enter full name"
+                      required
                   />
                 </div>
 
@@ -612,10 +662,50 @@ const UserManagementPage: React.FC = () => {
                   <input
                     type="text"
                       value={newStudent.register_number}
-                      onChange={(e) => setNewStudent({...newStudent, register_number: e.target.value})}
+                      onChange={(e) => {
+                        const value = e.target.value.trim();
+                        const updatedStudent = {...newStudent, register_number: value};
+                        console.log('Updated student register_number:', updatedStudent);
+                        setNewStudent(updatedStudent);
+                      }}
+                      onBlur={(e) => {
+                        const value = e.target.value.trim();
+                        if (value !== newStudent.register_number) {
+                          const updatedStudent = {...newStudent, register_number: value};
+                          console.log('Blur updated student register_number:', updatedStudent);
+                          setNewStudent(updatedStudent);
+                        }
+                      }}
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                       placeholder="Enter register number"
+                      required
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Class Year *
+                  </label>
+                  <select
+                    value={newStudent.class_year}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value);
+                      if (!isNaN(value) && value >= 1 && value <= 4) {
+                        const updatedStudent = {...newStudent, class_year: value};
+                        console.log('Updated student class_year:', updatedStudent);
+                        setNewStudent(updatedStudent);
+                      } else {
+                        console.error('Invalid class year value:', e.target.value);
+                      }
+                    }}
+                    className="w-full px-3 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    required
+                  >
+                    <option value={1}>Year 1</option>
+                    <option value={2}>Year 2</option>
+                    <option value={3}>Year 3</option>
+                    <option value={4}>Year 4</option>
+                  </select>
                 </div>
 
                 <div>
@@ -624,8 +714,16 @@ const UserManagementPage: React.FC = () => {
                   </label>
                   <select
                       value={newStudent.department}
-                      onChange={(e) => setNewStudent({...newStudent, department: e.target.value})}
+                      onChange={(e) => {
+                        const value = e.target.value.trim();
+                        if (value) {
+                          const updatedStudent = {...newStudent, department: value};
+                          console.log('Updated student department:', updatedStudent);
+                          setNewStudent(updatedStudent);
+                        }
+                      }}
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      required
                     >
                       <option value="" disabled>Select Department</option>
                       <option value="BSc Computer Science">BSc Computer Science</option>
@@ -648,12 +746,36 @@ const UserManagementPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Form Validation Status */}
+              <div className="mt-4 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                <p className="text-sm text-gray-600 mb-2">Form Status:</p>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className={`flex items-center gap-2 ${newStudent.name ? 'text-green-600' : 'text-red-600'}`}>
+                    <span className={`w-2 h-2 rounded-full ${newStudent.name ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                    Name: {newStudent.name ? '✓' : '✗'}
+                  </div>
+                  <div className={`flex items-center gap-2 ${newStudent.register_number ? 'text-green-600' : 'text-red-600'}`}>
+                    <span className={`w-2 h-2 rounded-full ${newStudent.register_number ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                    Register Number: {newStudent.register_number ? '✓' : '✗'}
+                  </div>
+                  <div className={`flex items-center gap-2 ${newStudent.class_year ? 'text-green-600' : 'text-red-600'}`}>
+                    <span className={`w-2 h-2 rounded-full ${newStudent.class_year ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                    Class Year: {newStudent.class_year ? '✓' : '✗'}
+                  </div>
+                  <div className={`flex items-center gap-2 ${newStudent.department ? 'text-green-600' : 'text-red-600'}`}>
+                    <span className={`w-2 h-2 rounded-full ${newStudent.department ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                    Department: {newStudent.department ? '✓' : '✗'}
+                  </div>
+                </div>
+              </div>
+
               {/* Action Buttons */}
               <div className="flex gap-3 mt-8 pt-6 border-t border-gray-200">
                 <button
                   onClick={handleAddStudent}
-                  disabled={isAddingStudent || !newStudent.name || !newStudent.register_number || !newStudent.department}
+                  disabled={isAddingStudent || !newStudent.name || !newStudent.register_number || !newStudent.class_year || !newStudent.department}
                   className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-xl font-medium transition-all flex items-center justify-center space-x-2 disabled:cursor-not-allowed"
+                  title={`Validation: name=${!!newStudent.name}, register_number=${!!newStudent.register_number}, class_year=${!!newStudent.class_year}, department=${!!newStudent.department}`}
                 >
                   {isAddingStudent ? (
                     <>
