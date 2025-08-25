@@ -20,7 +20,7 @@ interface Stats {
 }
 
 const API_BASE = process.env.NODE_ENV === 'production' 
-  ? 'https://attendance-management-system-z2cc.onrender.com/api'
+  ? 'https://attendance-v2-jius.onrender.com'
   : 'http://localhost:5000/api';
 
 const AdminDashboard: React.FC = () => {
