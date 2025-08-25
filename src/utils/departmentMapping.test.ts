@@ -35,7 +35,7 @@ describe('Department Name Standardization', () => {
     { input: 'Bsc Cs with Cs', expected: 'BSc CS with CS' }
   ];
 
-  testCases.forEach(({ input, expected }, index) => {
+  testCases.forEach(({ input, expected }) => {
     it(`should standardize "${input}" to "${expected}"`, () => {
       const result = standardizeDepartmentName(input);
       expect(result).toBe(expected);
