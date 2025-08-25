@@ -33,7 +33,7 @@ const CheckInOutPage: React.FC = () => {
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
 
   const API_BASE = process.env.NODE_ENV === 'production' 
-    ? 'https://attendance-v2-jius.onrender.com' 
+    ? 'https://attendance-v2-jius.onrender.com/api' 
     : 'http://localhost:5000/api';
 
   const checkDatabaseStatus = async () => {

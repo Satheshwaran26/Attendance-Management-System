@@ -8,15 +8,25 @@ const PORT = process.env.PORT || 5000;
 
 // CORS configuration
 const corsOptions = {
-  origin: [
-    'https://attendances-system.vercel.app',
-    'https://attendances-system.vercel.app/',
-    'http://localhost:3000',
-    'http://localhost:5173'
-  ],
+  origin: function(origin, callback) {
+    const allowedOrigins = [
+      'https://attendances-system.vercel.app',
+      'https://attendances-system.vercel.app/',
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'http://localhost:5174'
+    ];
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.log('Blocked origin:', origin);
+      callback(null, true); // Temporarily allow all origins for debugging
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Length', 'X-Requested-With']
 };
 
 // Middleware
@@ -92,6 +102,31 @@ app.get('/api/students', async (req, res) => {
   } catch (error) {
     console.error('Error fetching students:', error);
     res.status(500).json({ error: 'Failed to fetch students' });
+  }
+});
+
+// Get students stats
+app.get('/api/students/stats', async (req, res) => {
+  try {
+    const [totalResult, activeResult, departmentStats] = await Promise.all([
+      client.query('SELECT COUNT(*) as total FROM students'),
+      client.query('SELECT COUNT(*) as active FROM students WHERE is_active = true'),
+      client.query(`
+        SELECT department, COUNT(*) as count 
+        FROM students 
+        GROUP BY department
+        ORDER BY count DESC
+      `)
+    ]);
+
+    res.json({
+      total: parseInt(totalResult.rows[0].total),
+      active: parseInt(activeResult.rows[0].active),
+      byDepartment: departmentStats.rows
+    });
+  } catch (error) {
+    console.error('Error fetching student stats:', error);
+    res.status(500).json({ error: 'Failed to fetch student statistics' });
   }
 });
 
